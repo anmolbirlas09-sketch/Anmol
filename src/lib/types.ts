@@ -156,3 +156,65 @@ export interface ConsumptionLine {
   created_at: string;
   created_by: string | null;
 }
+
+export type LoomStatus = 'idle' | 'running' | 'maintenance';
+
+export interface LoomStatusRow {
+  loom_id: string;
+  machine_no: string;
+  status: LoomStatus;
+  active: boolean;
+  sort_order: number;
+  factory_id: string;
+  factory_code: string;
+  beam_id: string | null;
+  beam_no: string | null;
+  loaded_at: string | null;
+  fabric_quality_id: string | null;
+  fabric_quality_name: string | null;
+  warp_length_m: number | null;
+  warp_kg: number | null;
+  weft_kg: number | null;
+  meters_on_beam: number | null;
+  kgs_on_beam: number | null;
+  expected_fabric_length_m: number | null;
+  total_yarn_kg: number | null;
+}
+
+export interface Takeoff {
+  id: string;
+  entry_date: string;
+  shift: string | null;
+  meters: number;
+  kgs: number;
+  roll_no: string | null;
+  notes: string | null;
+  created_at: string;
+  meters_per_kg: number | null;
+  beam_id: string;
+  beam_no: string;
+  beam_status: BeamStatus;
+  loom_id: string;
+  machine_no: string;
+  factory_id: string;
+  factory_code: string;
+  fabric_quality_id: string;
+  fabric_quality_name: string;
+  created_by: string | null;
+  created_by_name: string | null;
+}
+
+export interface GreyStockRow {
+  fabric_quality_id: string;
+  fabric_quality_name: string;
+  factory_id: string;
+  factory_code: string;
+  produced_m: number;
+  produced_kg: number;
+  dispatched_m: number;
+  dispatched_kg: number;
+  adjusted_m: number;
+  adjusted_kg: number;
+  stock_m: number;
+  stock_kg: number;
+}

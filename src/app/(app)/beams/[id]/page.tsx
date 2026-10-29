@@ -2,16 +2,20 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
-import { Card, Notice, PageHeader, SectionTitle, cx } from '@/components/ui';
+import { Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, cx } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { getBeamSummary, getConsumptionLines } from '@/lib/data/beams';
+import { listLoomStatus, listTakeoffs } from '@/lib/data/looms';
 import { getFabricQuality } from '@/lib/data/masters';
 import { listOpenLots } from '@/lib/data/yarn';
-import { fmtDate, fmtKg, fmtM, fmtPct, todayIST } from '@/lib/format';
+import { fmtDate, fmtDateTime, fmtKg, fmtM, fmtPct, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { BeamSummary, ConsumptionLineView, UsageType } from '@/lib/types';
 import { deleteConsumptionAction } from '../actions';
+import { finishBeamAction } from '../../looms/actions';
+import { LoadBeamForm } from '../../looms/LoadBeamForm';
+import { TakeoffList } from '../../looms/TakeoffList';
 import { BeamStatusBadge } from '../BeamStatusBadge';
 import { ConsumptionForm } from './ConsumptionForm';
 
@@ -20,12 +24,19 @@ export const metadata: Metadata = { title: L.beam.title };
 export default async function BeamPage({ params, searchParams }: PageProps<'/beams/[id]'>) {
   const user = await requireUser();
   const { id } = await params;
-  const { created } = await searchParams;
+  const { created, error } = await searchParams;
   const db = await createClient();
   const beam = await getBeamSummary(db, id).catch(() => null);
   if (!beam) notFound();
-  const [lines, lots, fq] = await Promise.all([getConsumptionLines(db, id), listOpenLots(db), getFabricQuality(db, beam.fabric_quality_id)]);
+  const [lines, lots, fq, takeoffs, looms] = await Promise.all([
+    getConsumptionLines(db, id),
+    listOpenLots(db),
+    getFabricQuality(db, beam.fabric_quality_id),
+    listTakeoffs(db, { beamId: id, limit: 200 }),
+    beam.status === 'prepared' ? listLoomStatus(db, { factoryId: user.factory_id ?? undefined }) : Promise.resolve([]),
+  ]);
   const editable = canEdit(user);
+  const here = `/beams/${beam.beam_id}`;
 
   return (
     <>
@@ -46,7 +57,58 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
         </div>
       )}
 
+      {typeof error === 'string' && (
+        <div className="mb-4">
+          <Notice tone="bad">{error}</Notice>
+        </div>
+      )}
+
       <PlannedVsActual beam={beam} />
+
+      <SectionTitle>{L.beam.loom}</SectionTitle>
+      {beam.status === 'prepared' && (
+        <Card>
+          <LoadBeamForm beams={[]} looms={looms.filter((l) => l.status === 'idle')} fixedBeam={beam} />
+        </Card>
+      )}
+      {beam.status === 'on_loom' && beam.loom_id && (
+        <Card className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <Link href={`/looms/${beam.loom_id}`} className="text-lg font-bold text-brand">
+              {L.beam.onLoom(beam.machine_no ?? '')}
+            </Link>
+            <div className="text-xs text-muted">{L.loom.loadedAt} {fmtDateTime(beam.loaded_at)}</div>
+          </div>
+          <div className="flex gap-2">
+            <Link href={`/looms/${beam.loom_id}`} className={buttonClass.primary}>{L.takeoff.short}</Link>
+            <form action={finishBeamAction}>
+              <input type="hidden" name="beam_id" value={beam.beam_id} />
+              <input type="hidden" name="return" value={here} />
+              <ConfirmButton message={L.loom.finishConfirm(beam.beam_no)} className={buttonClass.secondary}>
+                {L.loom.finish}
+              </ConfirmButton>
+            </form>
+          </div>
+        </Card>
+      )}
+      {beam.status === 'finished' && (
+        <p className="text-sm text-muted">
+          {L.beam.statuses.finished} {fmtDateTime(beam.finished_at)}
+          {beam.machine_no ? ` · ${beam.machine_no}` : ''}
+        </p>
+      )}
+
+      {beam.takeoff_count > 0 && (
+        <>
+          <SectionTitle>{L.beam.yield}</SectionTitle>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="beam-yield">
+            <Stat label={L.beam.greyProduced} value={fmtM(beam.grey_meters)} unit="m" />
+            <Stat label={`${L.beam.greyProduced} kg`} value={fmtKg(beam.grey_kg)} unit="kg" />
+            <Stat label={L.beam.wastage} value={`${fmtKg(beam.wastage_kg)} kg`} unit={beam.wastage_pct != null ? `(${beam.wastage_pct.toFixed(2)}%)` : undefined} tone={beam.wastage_kg < 0 ? 'bad' : undefined} />
+            <Stat label={L.takeoff.metersPerKg} value={beam.meters_per_kg != null ? beam.meters_per_kg.toFixed(3) : L.app.none} />
+          </div>
+        </>
+      )}
 
       <SectionTitle>{L.beam.addConsumption}</SectionTitle>
       <Card>
@@ -71,6 +133,9 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
           ))}
         </div>
       )}
+
+      <SectionTitle>{L.beam.takeoffs}</SectionTitle>
+      <TakeoffList rows={takeoffs} canDelete={editable} returnTo={here} show="loom" />
 
       <dl className="mt-6 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         {[

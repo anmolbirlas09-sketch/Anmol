@@ -80,6 +80,25 @@ export const consumptionSchema = z.object({
 });
 export type ConsumptionInput = z.infer<typeof consumptionSchema>;
 
+export const SHIFTS = ['day', 'night', 'A', 'B', 'C'] as const;
+
+export const loadBeamSchema = z.object({
+  beam_id: uuid(),
+  loom_id: uuid(),
+});
+
+export const takeoffSchema = z.object({
+  loom_id: uuid(),
+  meters: meters(),
+  kgs: kg(),
+  entry_date: isoDate(),
+  shift: z.preprocess(blankToUndefined, z.enum(SHIFTS).optional()),
+  roll_no: z.preprocess(blankToUndefined, z.string().trim().max(50).optional()),
+  notes: optionalText(),
+  finish_beam: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+});
+export type TakeoffInput = z.infer<typeof takeoffSchema>;
+
 export const yarnQualitySchema = z.object({
   name: requiredText(),
   denier: optionalNumber({ dp: 2 }),

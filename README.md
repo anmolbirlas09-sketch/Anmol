@@ -10,11 +10,11 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 |---|---|---|
 | 1 | Schema, seed, stock views, DB-enforced rules, RLS | ✅ done |
 | 2 | Sign-in, yarn inward, beam creation, warp/weft consumption, masters | ✅ done |
-| 3 | Loom loading, fabric take-off, grey stock screens | ⏳ next |
-| 4 | Dashboard, loom grid, realtime | — |
+| 3 | Loom loading, fabric take-off, grey stock, loom grid | ✅ done |
+| 4 | Live dashboard, realtime updates | ⏳ next |
 | 5 | Dispatch, reports, Excel/PDF export, Excel import, role management UI | — |
 
-## Screens (phase 2)
+## Screens
 
 | Path | What it does |
 |---|---|
@@ -25,8 +25,13 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | `/yarn/[id]` | One lot: received / warp / weft / balance and every movement with a running balance |
 | `/beams` | Beams with status filter, search, warp/weft kg (red when over the variance limit) |
 | `/beams/new` | New beam with a live planned warp/weft preview |
-| `/beams/[id]` | Planned vs actual table, add warp/weft lines lot by lot (live available kg), lines by warp/weft; supervisors/owner can delete a line |
+| `/beams/[id]` | Planned vs actual, load on loom / finish, yield (grey m & kg, wastage kg & %, m/kg), take-offs, add warp/weft lines lot by lot (live available kg) |
 | `/masters/...` | Yarn qualities, fabric qualities, suppliers (owner + supervisor add/edit) |
+| `/looms` | All 68 looms as tiles by factory (green = running, with beam and meters so far); factory toggle |
+| `/looms/load` | Load on loom: pick a prepared beam and a free loom (beam's factory listed first) |
+| `/looms/[id]` | One loom: current beam, take-off form, "Mark beam finished", "Unload" for supervisors (only before any fabric), loom history; load form when idle |
+| `/takeoff` | Fabric take-off: pick a running loom (its beam fills in), meters + kg (live m/kg), shift, roll no, "last fabric — finish the beam" |
+| `/grey` | Grey stock (m and kg) by fabric quality with the factory split; factory toggle |
 
 All labels are in `src/lib/labels.ts`; formatting (kg 3 dp, m 2 dp, DD-MM-YYYY, IST) in `src/lib/format.ts`; every Supabase query in `src/lib/data/`.
 
@@ -46,6 +51,7 @@ supabase/
     …0004_rls.sql             roles, row-level security, grants, realtime
     …0005_reference_data.sql  2 factories, 68 looms, default settings (all envs)
     …0006_app_views.sql       views for the screens; fixes v_yarn_ledger for factory-scoped users
+    …0007_takeoff_views.sql   v_takeoffs; v_loom_status gains expected length + yarn used
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages

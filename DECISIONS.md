@@ -65,6 +65,15 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 35. **Date inputs** use the phone's native date picker, which shows the phone's own format (DD/MM/YYYY on Indian-English phones). Everything the app prints is DD-MM-YYYY.
 36. **Stock of a quality at zero** still shows its card with a low-stock badge, so running out is visible.
 
+## Looms, take-off, grey (phase 3)
+38. **Bottom navigation** is Home · Yarn · Beams · Looms · Grey. Masters moved to Home (and the header on wider screens) to keep five large tabs.
+39. **Take-off is the main shop-floor action**, so it is the first button on Home and on the Looms page. Picking a loom fills in its beam; the form keeps loom, date and shift for the next roll and clears meters, kg and roll no.
+40. **Plausibility hints, not blocks:** the take-off form shows m/kg as you type, meters so far vs the beam's expected fabric length, and warns if grey kg would exceed the yarn used on the beam. None of these stop a save, because the scale reading is the truth.
+41. **Loading:** L-76 / L-75 staff see only their own factory's free looms. The owner sees all, with the beam's own factory listed first. Loading onto a loom in another factory moves the beam there (decision 10).
+42. **Corrections:** a supervisor can *unload* a beam put on the wrong loom (only before any take-off), and *delete* a take-off (refused if that fabric was already dispatched, see decision 4). Data-entry users can do neither.
+43. **Loom tiles in phase 3 are refreshed on navigation**; live updates without refresh come with the phase 4 dashboard.
+44. **Shift names** are still placeholders (Day, Night, A, B, C) until you confirm yours.
+
 ## Testing
 26. Tests run against a **real Postgres**, not mocks, with a small shim for Supabase's `auth.uid()` and roles. Each test file clones a freshly migrated template database.
 37. **Fake Supabase gateway for app tests.** Running Supabase locally needs Docker, which isn't available here, so `tests/stack/fake-supabase.ts` implements GoTrue's password flow and the PostgREST subset the app uses, executing each request as the JWT's role with `request.jwt.claims` set. This keeps RLS, triggers and error codes real. It is not verified against real PostgREST: the first deploy to a Supabase project should include a quick click-through.

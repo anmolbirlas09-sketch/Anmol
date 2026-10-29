@@ -9,8 +9,11 @@ const items = [
   { href: '/', label: L.nav.home, icon: '⌂' },
   { href: '/yarn', label: L.nav.yarn, icon: '◎' },
   { href: '/beams', label: L.nav.beams, icon: '▤' },
-  { href: '/masters', label: L.nav.masters, icon: '☰' },
+  { href: '/looms', label: L.nav.looms, icon: '▦' },
+  { href: '/grey', label: L.nav.grey, icon: '▭' },
 ];
+// Masters is reached from Home on phones; listed in the header on wider screens.
+const topItems = [...items, { href: '/masters', label: L.nav.masters, icon: '☰' }];
 
 const isActive = (path: string, href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`));
 
@@ -20,7 +23,7 @@ export function Nav({ variant }: { variant: 'bottom' | 'top' }) {
   if (variant === 'top') {
     return (
       <nav aria-label="Main" className="hidden gap-1 md:flex">
-        {items.map((i) => (
+        {topItems.map((i) => (
           <Link
             key={i.href}
             href={i.href}
@@ -39,7 +42,7 @@ export function Nav({ variant }: { variant: 'bottom' | 'top' }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-4 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {items.map((i) => (
         <Link
