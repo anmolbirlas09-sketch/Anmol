@@ -305,7 +305,12 @@ export async function startFakeSupabase(opts: { databaseUrl: string; port?: numb
         if (!meta.rows[0]) throw Object.assign(new Error(`function ${fn} not found`), { code: '42883' });
         const { proretset, typtype } = meta.rows[0];
         if (typtype === 'c' || proretset) {
-          rows = (await client.query(`select * from public.${ident(fn)}(${argSql.join(', ')})`, params)).rows;
+          // PostgREST lets set-returning RPCs be filtered, ordered and paged like a table.
+          const fnSql = `public.${ident(fn)}(${argSql.join(', ')})`;
+          const where = whereClause(sp, params);
+          const limit = sp.get('limit') ? ` limit ${Number(sp.get('limit'))}` : '';
+          const offset = sp.get('offset') ? ` offset ${Number(sp.get('offset'))}` : '';
+          rows = (await client.query(`select ${selectList(sp)} from ${fnSql} as r${where}${orderClause(sp)}${limit}${offset}`, params)).rows;
           if (!proretset) {
             isScalar = true;
             scalar = rows[0] ?? null;

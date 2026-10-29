@@ -84,6 +84,19 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 51. **"Today"** is the take-off entry date in Asia/Kolkata, not the time it was typed in.
 52. Sample qualities in `seed.sql` that have a low-stock level but no lots show as low stock (0 kg). Set their level to 0, or deactivate them, if they are not used.
 
+## Dispatch, reports, import, settings (phase 5)
+53. **Dispatch is per factory.** You pick the factory first; the quality list shows only what is in stock there, with m and kg. The form stops you going over the stock; the database refuses it anyway (WV003), for meters *and* kg.
+54. **Adjustments** (yarn lot: ±kg; grey: ±m and ±kg) need a reason and are made by a supervisor or the owner, who is recorded as approver. Stock can't be adjusted below zero.
+55. **Reports are computed in the database** (security-invoker functions, so RLS still applies) and long lists are fetched in pages, so nothing is silently cut off at Supabase's 1,000-row API limit (tested with 1,200 lots).
+56. **One report model → three outputs.** Each report is built once as a table; the screen, Excel and PDF all render that same table, so they never disagree. Excel keeps real numbers and dates so totals and filters work in Excel.
+57. **Report periods:** opening = before *From*; closing = up to *To*. Beam register and variance list beams *created* in the period. Defaults: this month to date, the user's own factory.
+58. **Excel import is check-then-import.** The file is validated row by row (row numbers match Excel). Import re-reads and re-checks the file on the server, rather than trusting rows sent back from the browser, and inserts everything in one statement (all or nothing). Lot numbers that appear after the check (another user) make the whole batch fail rather than half-import.
+59. **Opening yarn = yarn lots marked `is_opening`; opening grey = adjustments marked `is_opening`.** They show as "Opening stock" in ledgers and reports.
+60. **Settings are owner-only** (UI and RLS). The owner can't remove their own owner role or deactivate themselves. Looms: status can only be set to idle or maintenance by hand; a running loom can't be deactivated (DB rule).
+61. **Navigation:** six tabs (Home, Yarn, Beams, Looms, Grey, More). More holds Dispatch, Reports, Take-off, Import, Masters and Settings, filtered by role. Wider screens show Dispatch and Reports in the header.
+62. **Forms keep what was typed or saved.** React resets a form after each submit and dropdowns/checkboxes snap back to their first values, so forms remount with the values they should show (found by the Settings and inward tests).
+63. **Libraries:** `exceljs` (Excel read/write; its `uuid` dependency is pinned to a fixed version via `overrides`) and `jspdf` + `jspdf-autotable` (PDF).
+
 ## Testing
 26. Tests run against a **real Postgres**, not mocks, with a small shim for Supabase's `auth.uid()` and roles. Each test file clones a freshly migrated template database.
 37. **Fake Supabase gateway for app tests.** Running Supabase locally needs Docker, which isn't available here, so `tests/stack/fake-supabase.ts` implements GoTrue's password flow and the PostgREST subset the app uses, executing each request as the JWT's role with `request.jwt.claims` set. This keeps RLS, triggers and error codes real. It is not verified against real PostgREST: the first deploy to a Supabase project should include a quick click-through.

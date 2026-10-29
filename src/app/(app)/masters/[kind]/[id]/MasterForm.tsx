@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { Combobox } from '@/components/Combobox';
-import { SubmitButton, fieldProps } from '@/components/form';
+import { SubmitButton, fieldProps, formKey } from '@/components/form';
 import { Field, Notice, inputClass } from '@/components/ui';
 import { L } from '@/lib/labels';
 import type { YarnQuality } from '@/lib/types';
@@ -27,7 +27,7 @@ export function MasterForm({ kind, id, initial, yarnQualities = [] }: { kind: Ma
   const yarnOptions = yarnQualities.map((q) => ({ value: q.id, label: q.name, detail: q.denier ? `${q.denier} D` : undefined }));
 
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form key={formKey(state)} action={action} className="space-y-4" noValidate>
       {state.error && <Notice tone="bad">{state.error}</Notice>}
       {text('name', L.masters.name)}
 

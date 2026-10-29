@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { Combobox } from '@/components/Combobox';
-import { SubmitButton, fieldProps } from '@/components/form';
+import { SubmitButton, fieldProps, formKey } from '@/components/form';
 import { Field, Notice, inputClass } from '@/components/ui';
 import { L } from '@/lib/labels';
 import type { Factory, Supplier, YarnQuality } from '@/lib/types';
@@ -19,7 +19,7 @@ export function InwardForm({
   const v = state.values ?? {};
 
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form key={formKey(state)} action={action} className="space-y-4" noValidate>
       {state.error && <Notice tone="bad">{state.error}</Notice>}
 
       <div className="grid gap-4 sm:grid-cols-2">

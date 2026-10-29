@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { deleteTakeoff, finishBeam, loadBeam, recordTakeoff, unloadBeam } from '@/lib/data/looms';
-import { friendlyError } from '@/lib/errors';
+import { friendlyError, notAllowed } from '@/lib/errors';
 import { fmtKg, fmtM } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
@@ -72,13 +72,13 @@ export async function finishBeamAction(form: FormData): Promise<void> {
 export async function unloadBeamAction(form: FormData): Promise<void> {
   const beamId = String(form.get('beam_id') ?? '');
   await act(form, `/beams/${beamId}`, async (db) => {
-    if (!(await unloadBeam(db, beamId))) throw { code: '42501', message: 'not allowed' };
+    if (!(await unloadBeam(db, beamId))) throw notAllowed();
   });
 }
 
 export async function deleteTakeoffAction(form: FormData): Promise<void> {
   const id = String(form.get('id') ?? '');
   await act(form, '/takeoff', async (db) => {
-    if (!(await deleteTakeoff(db, id))) throw { code: '42501', message: 'not allowed' };
+    if (!(await deleteTakeoff(db, id))) throw notAllowed();
   });
 }

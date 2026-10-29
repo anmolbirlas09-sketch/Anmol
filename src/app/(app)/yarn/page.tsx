@@ -7,6 +7,7 @@ import { listFactories } from '@/lib/data/masters';
 import { listLotBalances, yarnStockByQuality } from '@/lib/data/yarn';
 import { fmtDate, fmtKg } from '@/lib/format';
 import { L } from '@/lib/labels';
+import { factoryParam, uuidParam } from '@/lib/params';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: L.yarn.title };
@@ -17,14 +18,14 @@ export default async function YarnPage({ searchParams }: PageProps<'/yarn'>) {
   await requireUser();
   const sp = await searchParams;
   const q = str(sp.q);
-  const factory = str(sp.factory);
-  const quality = str(sp.quality);
+  const quality = uuidParam(sp.quality);
   const all = str(sp.all) === '1';
   const saved = str(sp.saved);
 
   const db = await createClient();
-  const [factories, stock, lots] = await Promise.all([
-    listFactories(db),
+  const factories = await listFactories(db);
+  const factory = factoryParam(sp.factory, factories);
+  const [stock, lots] = await Promise.all([
     yarnStockByQuality(db),
     listLotBalances(db, { q, factoryId: factory, qualityId: quality, includeEmpty: all }),
   ]);

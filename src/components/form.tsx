@@ -33,3 +33,13 @@ export function fieldProps(
     'aria-describedby': error ? `${name}-error` : undefined,
   } as const;
 }
+
+/**
+ * Key for a <form> driven by useActionState. React resets a form after each
+ * submit, and <select>/<checkbox> fall back to their *first-render* defaults on
+ * reset. Remounting the form whenever the values to show change makes selects
+ * and checkboxes show what was typed (after an error) or saved (after success).
+ */
+export function formKey(state: { values?: Record<string, string>; ok?: boolean }): string {
+  return `${state.ok ? 'ok' : 'edit'}:${JSON.stringify(state.values ?? null)}`;
+}

@@ -99,6 +99,86 @@ export const takeoffSchema = z.object({
 });
 export type TakeoffInput = z.infer<typeof takeoffSchema>;
 
+export const dispatchSchema = z.object({
+  fabric_quality_id: uuid(),
+  factory_id: uuid(),
+  entry_date: isoDate(),
+  meters: meters(),
+  kgs: kg(),
+  party: z.preprocess(blankToUndefined, z.string().trim().max(200).optional()),
+  challan_no: z.preprocess(blankToUndefined, z.string().trim().max(50).optional()),
+  roll_refs: optionalText(),
+  notes: optionalText(),
+});
+export type DispatchInput = z.infer<typeof dispatchSchema>;
+
+/** Signed number: '-5', '+2.5', '3' (non-zero). */
+function signedQuantity(dp: number, allowZero = false) {
+  return z
+    .string({ error: L.app.required })
+    .trim()
+    .min(1, L.app.required)
+    .transform((s) => s.replace(/,/g, '').replace(/^\+/, ''))
+    .refine((s) => /^-?\d*\.?\d+$/.test(s), L.errors.number)
+    .refine((s) => decimals(s) <= dp, L.errors.maxDecimals(dp))
+    .transform(Number)
+    .refine((n) => allowZero || n !== 0, L.errors.nonZero);
+}
+
+export const yarnAdjustmentSchema = z.object({
+  yarn_lot_id: uuid(),
+  kgs: signedQuantity(3),
+  reason: requiredText(200),
+  entry_date: isoDate(),
+});
+export type YarnAdjustmentInput = z.infer<typeof yarnAdjustmentSchema>;
+
+export const greyAdjustmentSchema = z
+  .object({
+    fabric_quality_id: uuid(),
+    factory_id: uuid(),
+    meters: signedQuantity(2, true),
+    kgs: signedQuantity(3, true),
+    reason: requiredText(200),
+    entry_date: isoDate(),
+  })
+  .refine((v) => v.meters !== 0 || v.kgs !== 0, { message: L.errors.nonZero, path: ['meters'] });
+export type GreyAdjustmentInput = z.infer<typeof greyAdjustmentSchema>;
+
+export const ROLES = ['owner', 'supervisor', 'data_entry'] as const;
+
+export const userSchema = z.object({
+  id: uuid(),
+  name: requiredText(),
+  role: z.enum(ROLES),
+  factory_id: optionalUuid(),
+  active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+});
+
+export const loomSchema = z.object({
+  machine_no: requiredText(30).transform((s) => s.toUpperCase()),
+  factory_id: uuid(),
+  sort_order: optionalNumber({ int: true }),
+  status: z.enum(['idle', 'maintenance', 'running']).optional(),
+  active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+  notes: optionalText(),
+});
+
+export const factorySchema = z.object({
+  code: requiredText(20).transform((s) => s.toUpperCase()),
+  name: requiredText(),
+  active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+});
+
+export const settingsSchema = z.object({
+  variance_threshold_pct: z
+    .string({ error: L.app.required })
+    .trim()
+    .refine((s) => /^\d*\.?\d+$/.test(s), L.errors.number)
+    .transform(Number)
+    .refine((n) => n > 0 && n <= 100, L.errors.between(0, 100)),
+});
+
 export const yarnQualitySchema = z.object({
   name: requiredText(),
   denier: optionalNumber({ dp: 2 }),

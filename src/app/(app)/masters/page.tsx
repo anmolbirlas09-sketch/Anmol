@@ -21,8 +21,8 @@ export default async function MastersPage() {
           </li>
         ))}
       </ul>
-      <p className="mt-6 text-sm text-muted">
-        {L.masters.looms}: {L.app.comingSoon.toLowerCase()}.
+      <p className="mt-6 text-sm">
+        <Link href="/settings" className="font-semibold text-brand">{L.masters.looms} ›</Link>
       </p>
     </>
   );

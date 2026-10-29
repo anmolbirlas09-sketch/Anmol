@@ -1,4 +1,4 @@
-import { unwrap } from '../errors';
+import { notAllowed, unwrap } from '../errors';
 import type { Factory, FabricQualityView, Supplier, YarnQuality } from '../types';
 import type { Db } from './client';
 
@@ -44,7 +44,7 @@ export async function saveMaster(db: Db, table: MasterTable, values: Record<stri
   const row = Object.fromEntries(Object.entries(values).map(([k, v]) => [k, v === undefined ? null : v]));
   if (id) {
     const res = unwrap(await db.from(table as string).update(row).eq('id', id).select('id'));
-    if (!res?.length) throw Object.assign(new Error('not found'), { code: '42501' });
+    if (!res?.length) throw notAllowed();
     return id;
   }
   const created = unwrap(await db.from(table as string).insert(row).select('id').single()) as { id: string };

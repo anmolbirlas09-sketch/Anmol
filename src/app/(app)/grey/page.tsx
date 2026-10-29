@@ -1,27 +1,30 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { LiveRefresh } from '@/components/LiveRefresh';
-import { EmptyState, PageHeader, Segmented, Stat } from '@/components/ui';
-import { requireUser } from '@/lib/auth';
+import { EmptyState, LinkButton, PageHeader, Segmented, Stat } from '@/components/ui';
+import { canEdit, requireUser } from '@/lib/auth';
 import { greyStock, groupGreyByQuality } from '@/lib/data/grey';
 import { listFactories } from '@/lib/data/masters';
 import { fmtKg, fmtM } from '@/lib/format';
 import { L } from '@/lib/labels';
+import { factoryParam } from '@/lib/params';
 import { createClient } from '@/lib/supabase/server';
 
 export const metadata: Metadata = { title: L.grey.title };
 
 export default async function GreyPage({ searchParams }: PageProps<'/grey'>) {
-  await requireUser();
+  const user = await requireUser();
   const { factory } = await searchParams;
-  const factoryId = typeof factory === 'string' ? factory : undefined;
   const db = await createClient();
-  const [factories, rows] = await Promise.all([listFactories(db), greyStock(db, { factoryId })]);
+  const factories = await listFactories(db);
+  const factoryId = factoryParam(factory, factories);
+  const rows = await greyStock(db, { factoryId });
   const groups = groupGreyByQuality(rows);
   const total = groups.reduce((t, g) => ({ m: t.m + g.stock_m, kg: t.kg + g.stock_kg }), { m: 0, kg: 0 });
 
   return (
     <>
-      <PageHeader title={L.grey.title} subtitle={<span className="flex flex-wrap items-center gap-x-3"><span>{L.grey.dispatchSoon}</span><LiveRefresh /></span>} />
+      <PageHeader title={L.grey.title} subtitle={<LiveRefresh />} action={<LinkButton href="/dispatch">{L.dispatch.short}</LinkButton>} />
       <div className="mb-4">
         <Segmented
           label={L.beam.factory}
@@ -31,6 +34,11 @@ export default async function GreyPage({ searchParams }: PageProps<'/grey'>) {
           ]}
         />
       </div>
+      {canEdit(user) && (
+        <p className="-mt-2 mb-3 text-right">
+          <Link href="/grey/adjust" className="text-sm font-semibold text-brand">{L.adjust.greyTitle} ›</Link>
+        </p>
+      )}
       <div className="mb-5 grid grid-cols-2 gap-3" data-testid="grey-total">
         <Stat label={`${L.grey.stock} (m)`} value={fmtM(total.m)} unit="m" />
         <Stat label={`${L.grey.stock} (kg)`} value={fmtKg(total.kg)} unit="kg" />

@@ -2,7 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { Combobox } from '@/components/Combobox';
-import { SubmitButton, fieldProps } from '@/components/form';
+import { SubmitButton, fieldProps, formKey } from '@/components/form';
 import { Field, Notice, inputClass } from '@/components/ui';
 import { fmtKg, fmtM } from '@/lib/format';
 import { L } from '@/lib/labels';
@@ -29,7 +29,7 @@ export function BeamForm({
     : null;
 
   return (
-    <form action={action} className="space-y-4" noValidate>
+    <form key={formKey(state)} action={action} className="space-y-4" noValidate>
       {state.error && <Notice tone="bad">{state.error}</Notice>}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={L.beam.beamNo} htmlFor="beam_no" error={err.beam_no}>

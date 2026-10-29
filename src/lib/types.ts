@@ -240,3 +240,30 @@ export interface YarnStockByQualityFactory {
   lot_count: number;
   balance_kg: number;
 }
+
+export interface Dispatch {
+  id: string;
+  entry_date: string;
+  meters: number;
+  kgs: number;
+  roll_refs: string | null;
+  party: string | null;
+  challan_no: string | null;
+  notes: string | null;
+  created_at: string;
+  fabric_quality_id: string;
+  fabric_quality_name: string;
+  factory_id: string;
+  factory_code: string;
+  created_by_name: string | null;
+}
+
+export interface LoomRow {
+  id: string;
+  factory_id: string;
+  machine_no: string;
+  status: LoomStatus;
+  active: boolean;
+  sort_order: number;
+  notes: string | null;
+}

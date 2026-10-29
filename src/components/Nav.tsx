@@ -11,9 +11,15 @@ const items = [
   { href: '/beams', label: L.nav.beams, icon: '▤' },
   { href: '/looms', label: L.nav.looms, icon: '▦' },
   { href: '/grey', label: L.nav.grey, icon: '▭' },
+  { href: '/more', label: L.nav.more, icon: '☰' },
 ];
-// Masters is reached from Home on phones; listed in the header on wider screens.
-const topItems = [...items, { href: '/masters', label: L.nav.masters, icon: '☰' }];
+// Wider screens: everything in the header.
+const topItems = [
+  ...items.slice(0, 5),
+  { href: '/dispatch', label: L.dispatch.short, icon: '' },
+  { href: '/reports', label: L.nav.reports, icon: '' },
+  { href: '/more', label: L.nav.more, icon: '' },
+];
 
 const isActive = (path: string, href: string) => (href === '/' ? path === '/' : path === href || path.startsWith(`${href}/`));
 
@@ -42,7 +48,7 @@ export function Nav({ variant }: { variant: 'bottom' | 'top' }) {
   return (
     <nav
       aria-label="Main"
-      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-5 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-20 grid grid-cols-6 border-t border-line bg-surface pb-[env(safe-area-inset-bottom)] md:hidden"
     >
       {items.map((i) => (
         <Link

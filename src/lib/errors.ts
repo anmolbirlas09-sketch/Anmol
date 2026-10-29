@@ -15,6 +15,9 @@ export class DataError extends Error {
   }
 }
 
+/** What RLS amounts to when an update/delete silently matched no rows. */
+export const notAllowed = () => new DataError({ code: '42501', message: 'not allowed' });
+
 /** Throw a DataError if a supabase-js result failed; otherwise return its data. */
 export function unwrap<T>(res: { data: T | null; error: DbError | null }): NonNullable<T> {
   if (res.error) throw new DataError(res.error);

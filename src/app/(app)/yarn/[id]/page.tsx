@@ -2,16 +2,17 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { Card, PageHeader, SectionTitle, Stat } from '@/components/ui';
-import { requireUser } from '@/lib/auth';
+import { canEdit, requireUser } from '@/lib/auth';
 import { getLotBalance, getLotLedger } from '@/lib/data/yarn';
-import { fmtDate, fmtKg } from '@/lib/format';
+import { fmtDate, fmtKg, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
+import { YarnAdjustForm } from '../../grey/AdjustForms';
 
 export const metadata: Metadata = { title: L.yarn.title };
 
 export default async function LotPage({ params }: PageProps<'/yarn/[id]'>) {
-  await requireUser();
+  const user = await requireUser();
   const { id } = await params;
   const db = await createClient();
   const lot = await getLotBalance(db, id).catch(() => null);
@@ -49,6 +50,15 @@ export default async function LotPage({ params }: PageProps<'/yarn/[id]'>) {
           ))}
         </dl>
       </Card>
+
+      {canEdit(user) && (
+        <>
+          <SectionTitle>{L.adjust.yarnTitle}</SectionTitle>
+          <Card>
+            <YarnAdjustForm lotId={lot.yarn_lot_id} today={todayIST()} />
+          </Card>
+        </>
+      )}
 
       <SectionTitle>{L.yarn.ledger}</SectionTitle>
       <Card className="p-0">

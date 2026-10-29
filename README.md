@@ -12,7 +12,7 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | 2 | Sign-in, yarn inward, beam creation, warp/weft consumption, masters | ✅ done |
 | 3 | Loom loading, fabric take-off, grey stock, loom grid | ✅ done |
 | 4 | Live dashboard, loom grid with detail sheet, realtime updates | ✅ done |
-| 5 | Dispatch, reports, Excel/PDF export, Excel import, role management UI | ⏳ next |
+| 5 | Dispatch, adjustments, reports with Excel/PDF export, opening-stock Excel import, owner settings (users, looms, factories, threshold) | ✅ done |
 
 ## Screens
 
@@ -31,7 +31,13 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | `/looms/load` | Load on loom: pick a prepared beam and a free loom (beam's factory listed first) |
 | `/looms/[id]` | One loom: current beam, take-off form, "Mark beam finished", "Unload" for supervisors (only before any fabric), loom history; load form when idle |
 | `/takeoff` | Fabric take-off: pick a running loom (its beam fills in), meters + kg (live m/kg), shift, roll no, "last fabric — finish the beam" |
-| `/grey` | Grey stock (m and kg) by fabric quality with the factory split; factory toggle |
+| `/grey` | Grey stock (m and kg) by fabric quality with the factory split; factory toggle; Dispatch button |
+| `/dispatch` | Grey dispatch: factory → quality (shows stock there), meters + kg, party, challan, rolls; blocks more than in stock; recent dispatches |
+| `/grey/adjust`, lot page | Signed stock adjustments with a reason (supervisor / owner) |
+| `/reports` | Date range + factory (+ daily/monthly) filters; six reports, each on screen and as **Excel** and **PDF** |
+| `/import` | Opening yarn / grey stock from .xlsx: download template → check file (problems listed by row) → import all-or-nothing |
+| `/settings` | Owner only: users (activate, role, factory), looms (rename, maintenance, deactivate, add), factories, variance threshold |
+| `/more` | Dispatch, Reports, Take-off, Import, Masters, Settings (by role) |
 
 **Live updates:** the dashboard, Looms, Grey, Yarn and Beams pages listen to Supabase Realtime and refresh themselves within about half a second of anyone saving an entry (a green "Live" dot shows the connection). They also refresh when a phone is unlocked or the tab comes back into view.
 
@@ -55,6 +61,7 @@ supabase/
     …0006_app_views.sql       views for the screens; fixes v_yarn_ledger for factory-scoped users
     …0007_takeoff_views.sql   v_takeoffs; v_loom_status gains expected length + yarn used
     …0008_dashboard_views.sql v_production_daily (per day, loom, quality)
+    …0009_reports.sql         report functions (yarn by quality/lot, grey summary, loom production), v_dispatches
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -62,6 +69,7 @@ tests/app/                    data layer via supabase-js → fake gateway → Po
 tests/e2e/                    Playwright, phone-sized browser, the real Next.js app
 tests/stack/                  fake Supabase gateway (auth + PostgREST subset) for tests
 scripts/start-local-postgres.sh
+templates/                    Excel import templates (opening yarn / grey stock)
 DECISIONS.md                  assumptions and design choices
 ```
 
@@ -94,6 +102,28 @@ DECISIONS.md                  assumptions and design choices
 | `WV003` | Grey stock would go negative | `Not enough grey stock of Mono White at L-76: …` |
 | `WV004` | Invalid beam/loom state | `Loom L76-33 has no beam running` |
 | `WV005` | No access to that factory | |
+
+## Reports
+
+| Report | What it shows |
+|---|---|
+| Yarn stock by quality | Opening, inward, warp, weft, adjustments, closing kg per yarn quality |
+| Yarn stock ledger by lot | The same per lot |
+| Beam register | Beam → loom → warp / weft / total yarn → grey m & kg → wastage kg & % → m/kg |
+| Loom-wise production | Take-offs, meters, kg per loom and fabric quality, daily or monthly, per factory |
+| Grey stock summary | Opening, produced, dispatched, adjusted, closing (m and kg) per fabric quality and factory |
+| Variance report | Planned vs actual warp and weft kg per beam; rows over the threshold in red |
+
+"Opening" is everything before the *From* date; "closing" is everything up to the *To* date. Excel files contain real numbers and dates (formatted kg 0.000, m 0.00, dd-mm-yyyy) with a totals row; PDFs are A4 landscape. Factory staff only get their own factory.
+
+## Opening stock import
+
+1. **More → Import opening stock → Download template.** The template's dropdowns list your current yarn/fabric qualities, factories and suppliers (`templates/` has copies with the sample masters).
+2. Fill one row per lot (yarn) or per fabric quality per factory (grey). Required columns are yellow. Dates DD-MM-YYYY (or Excel dates); blank date = today.
+3. **Check file:** every problem is listed with its Excel row number (unknown quality, lot already exists, repeated lot, bad number or date, another factory…). Nothing is saved.
+4. **Import N rows:** the file is checked again on the server and inserted in a single statement — all rows or none.
+
+Yarn rows become yarn lots marked *opening*; grey rows become opening grey stock (adjustments marked *opening*) that can be dispatched. Owner and supervisors only.
 
 ## Setup
 
@@ -161,13 +191,15 @@ npm test             # database, unit and data-layer tests (Vitest)
 npm run test:e2e     # builds the app and drives it in a phone-sized Chromium (Playwright)
 ```
 
+**§8 acceptance is automated three times:** at database level (`tests/db/acceptance.test.ts`), through the app's own data functions with RLS (`tests/app/phase5.test.ts`, all nine steps including dispatch), and in the browser across `tests/e2e/phase3.spec.ts` (steps 5–9) and `phase5.spec.ts` (dispatch).
+
 The data-layer and browser tests run against `tests/stack/fake-supabase.ts`, a small stand-in for Supabase's gateway: real JWT sign-in, and the subset of PostgREST the app uses, executed as the signed-in user's role so RLS and triggers apply exactly as in production. It also serves a minimal Realtime websocket fed by `tests/db/realtime-shim.sql` (pg_notify triggers, test-only). It is not a full PostgREST or Realtime; keep app queries to views and simple filters (no embedded joins).
 
 Database tests cover: the full §8 acceptance test (run as an authenticated owner with RLS on), seed counts, planning formulas and variance flags, audit trail, negative-stock blocking (including a concurrent-write race), one-beam-per-loom, loom status rules, grey stock checks, and role/factory permissions.
 
 ## Deploy
 
-1. `supabase db push` (applies new migrations, e.g. 0006).
+1. `supabase db push` (applies all migrations, 0001–0009).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
 3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
 4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

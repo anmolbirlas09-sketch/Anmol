@@ -7,6 +7,7 @@ import { loadDashboard } from '@/lib/data/dashboard';
 import { listFactories } from '@/lib/data/masters';
 import { fmtKg, fmtM, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
+import { factoryParam } from '@/lib/params';
 import { createClient } from '@/lib/supabase/server';
 import { LoomGridSheet } from './LoomGridSheet';
 
@@ -18,7 +19,7 @@ export default async function DashboardPage({ searchParams }: PageProps<'/'>) {
   const db = await createClient();
   const factories = await listFactories(db);
   // Owners start on "All"; factory staff on their own factory.
-  const factoryId = f === 'all' ? undefined : typeof f === 'string' ? f : (user.factory_id ?? undefined);
+  const factoryId = factoryParam(f, factories, user.factory_id);
   const d = await loadDashboard(db, { factoryId, today: todayIST() });
   const low = d.yarn.filter((y) => y.is_low_stock);
 

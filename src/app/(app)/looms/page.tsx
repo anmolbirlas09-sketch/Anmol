@@ -5,6 +5,7 @@ import { requireUser } from '@/lib/auth';
 import { listLoomStatus } from '@/lib/data/looms';
 import { listFactories } from '@/lib/data/masters';
 import { L } from '@/lib/labels';
+import { factoryParam } from '@/lib/params';
 import { createClient } from '@/lib/supabase/server';
 import { LoomGrid } from './LoomGrid';
 
@@ -16,7 +17,7 @@ export default async function LoomsPage({ searchParams }: PageProps<'/looms'>) {
   const db = await createClient();
   const factories = await listFactories(db);
   // Default the toggle to the user's own factory.
-  const factory = f === 'all' ? undefined : typeof f === 'string' ? f : (user.factory_id ?? undefined);
+  const factory = factoryParam(f, factories, user.factory_id);
   const looms = await listLoomStatus(db, { factoryId: factory });
 
   return (
