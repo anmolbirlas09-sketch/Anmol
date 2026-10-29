@@ -53,5 +53,18 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 24. Lot, beam and machine numbers are unique **case-insensitively** (`a-101` = `A-101`).
 25. Shift is optional and limited to `day`, `night`, `A`, `B`, `C` — tell me your actual shift names.
 
+## App (phase 2)
+27. **Server Components + Server Actions** for everything; the browser never talks to the database directly yet (realtime arrives in phase 4). Every query lives in `src/lib/data/` and takes a Supabase client, so the same functions run in the app and in tests.
+28. **Supabase publishable key** (`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`) is the default; the legacy anon key is accepted too. Session cookies are refreshed in `src/proxy.ts` (Next 16's name for middleware).
+29. **Sign-in is email + password.** Phone OTP can be added later in Supabase without changing the app's data model.
+30. **Lot and beam numbers are upper-cased** on entry (`a-101` → `A-101`).
+31. **Masters (yarn qualities, fabric qualities, suppliers) were added in phase 2** because inward and beam creation need them. Factories, looms, users and settings stay for phase 5 (roles).
+32. **Available kg is checked three times:** the lot list on page load, a fresh balance fetched the moment a lot is picked, and finally the database on save. If someone else used the yarn in between, the save is refused with the database's message (tested with two browsers).
+33. **Deleting a consumption line** (supervisor/owner) is allowed so mistakes can be fixed; it is logged in `audit_log`. Editing a line = delete + add.
+34. **Factory-scoped users see every movement on a yarn lot**, but not the beam number of another factory's beam (`v_yarn_ledger` fix in migration 0006). The lot history therefore always adds up to the balance.
+35. **Date inputs** use the phone's native date picker, which shows the phone's own format (DD/MM/YYYY on Indian-English phones). Everything the app prints is DD-MM-YYYY.
+36. **Stock of a quality at zero** still shows its card with a low-stock badge, so running out is visible.
+
 ## Testing
 26. Tests run against a **real Postgres**, not mocks, with a small shim for Supabase's `auth.uid()` and roles. Each test file clones a freshly migrated template database.
+37. **Fake Supabase gateway for app tests.** Running Supabase locally needs Docker, which isn't available here, so `tests/stack/fake-supabase.ts` implements GoTrue's password flow and the PostgREST subset the app uses, executing each request as the JWT's role with `request.jwt.claims` set. This keeps RLS, triggers and error codes real. It is not verified against real PostgREST: the first deploy to a Supabase project should include a quick click-through.

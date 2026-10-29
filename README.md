@@ -9,14 +9,35 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | Phase | Scope | Status |
 |---|---|---|
 | 1 | Schema, seed, stock views, DB-enforced rules, RLS | ✅ done |
-| 2 | Yarn inward, beam creation, consumption screens | ⏳ next |
-| 3 | Loom loading, fabric take-off, grey stock screens | — |
+| 2 | Sign-in, yarn inward, beam creation, warp/weft consumption, masters | ✅ done |
+| 3 | Loom loading, fabric take-off, grey stock screens | ⏳ next |
 | 4 | Dashboard, loom grid, realtime | — |
 | 5 | Dispatch, reports, Excel/PDF export, Excel import, role management UI | — |
+
+## Screens (phase 2)
+
+| Path | What it does |
+|---|---|
+| `/login`, `/signup`, `/pending` | Email + password sign-in; new accounts wait for the owner to activate them |
+| `/` | Home: yarn stock total, beams ready / running, low-stock warning, quick actions |
+| `/yarn` | Lots with live balance; stock-by-quality cards (tap to filter), factory toggle, search, "show used-up lots" |
+| `/yarn/new` | Yarn inward: lot no, quality, kg, factory, supplier, challan, bags/cones, rate. "Save + new" for several lots |
+| `/yarn/[id]` | One lot: received / warp / weft / balance and every movement with a running balance |
+| `/beams` | Beams with status filter, search, warp/weft kg (red when over the variance limit) |
+| `/beams/new` | New beam with a live planned warp/weft preview |
+| `/beams/[id]` | Planned vs actual table, add warp/weft lines lot by lot (live available kg), lines by warp/weft; supervisors/owner can delete a line |
+| `/masters/...` | Yarn qualities, fabric qualities, suppliers (owner + supervisor add/edit) |
+
+All labels are in `src/lib/labels.ts`; formatting (kg 3 dp, m 2 dp, DD-MM-YYYY, IST) in `src/lib/format.ts`; every Supabase query in `src/lib/data/`.
 
 ## Repository layout
 
 ```
+src/
+  app/                        Next.js App Router pages + server actions
+  components/                 UI kit (inputs, searchable Combobox, nav)
+  lib/                        labels, format, validation, errors, planning, data access
+  proxy.ts                    session refresh + sign-in redirect
 supabase/
   migrations/
     …0001_core_schema.sql     tables, enums, created_*/updated_* stamps, audit_log
@@ -24,8 +45,13 @@ supabase/
     …0003_views.sql           ledgers, balances, planned vs actual, loom status
     …0004_rls.sql             roles, row-level security, grants, realtime
     …0005_reference_data.sql  2 factories, 68 looms, default settings (all envs)
+    …0006_app_views.sql       views for the screens; fixes v_yarn_ledger for factory-scoped users
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
-tests/db/                     Vitest suite against a real Postgres (incl. §8)
+tests/db/                     database tests against real Postgres (incl. §8)
+tests/unit/                   formatting, validation, planning, error messages
+tests/app/                    data layer via supabase-js → fake gateway → Postgres + RLS
+tests/e2e/                    Playwright, phone-sized browser, the real Next.js app
+tests/stack/                  fake Supabase gateway (auth + PostgREST subset) for tests
 scripts/start-local-postgres.sh
 DECISIONS.md                  assumptions and design choices
 ```
@@ -78,13 +104,36 @@ Local development with Docker: `supabase start` then `supabase db reset` (applie
 
 ### Environment variables
 
-Added with the Next.js app in phase 2:
+Copy `.env.example` to `.env.local`:
 
 | Variable | Where |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | Supabase → Project Settings → API |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase → Project Settings → API |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Supabase → Project Settings → API keys (publishable key; the legacy anon key also works, or set `NEXT_PUBLIC_SUPABASE_ANON_KEY`) |
 | `DATABASE_URL` | tests only; defaults to `postgres://postgres:postgres@127.0.0.1:5432/postgres` |
+
+### Run the app
+
+```bash
+npm install
+```
+```bash
+npm run dev
+```
+
+**Without a Supabase project** you can click through the app against the local test stack (needs local Postgres):
+
+```bash
+npm run dev:stack
+```
+
+Then in another terminal, using the key it prints:
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=http://127.0.0.1:54321 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<printed key> npm run dev
+```
+
+Sign in as `owner@test.local`, `sup76@test.local` or `entry76@test.local`, password `password123`.
 
 ## Tests
 
@@ -97,11 +146,18 @@ npm install
 npm run db:test:start   # starts local Postgres (Debian/Ubuntu); or set DATABASE_URL
 ```
 ```bash
-npm test
+npm test             # database, unit and data-layer tests (Vitest)
+```
+```bash
+npm run test:e2e     # builds the app and drives it in a phone-sized Chromium (Playwright)
 ```
 
-Covered: the full §8 acceptance test (run as an authenticated owner with RLS on), seed counts, planning formulas and variance flags, audit trail, negative-stock blocking (including a concurrent-write race), one-beam-per-loom, loom status rules, grey stock checks, and role/factory permissions.
+The data-layer and browser tests run against `tests/stack/fake-supabase.ts`, a small stand-in for Supabase's gateway: real JWT sign-in, and the subset of PostgREST the app uses, executed as the signed-in user's role so RLS and triggers apply exactly as in production. It is not a full PostgREST; keep app queries to views and simple filters (no embedded joins).
+
+Database tests cover: the full §8 acceptance test (run as an authenticated owner with RLS on), seed counts, planning formulas and variance flags, audit trail, negative-stock blocking (including a concurrent-write race), one-beam-per-loom, loom status rules, grey stock checks, and role/factory permissions.
 
 ## Deploy
 
-Phase 2 onward: push to GitHub, import the repo in Vercel, set the two `NEXT_PUBLIC_SUPABASE_*` variables, deploy. Database changes ship with `supabase db push`.
+1. `supabase db push` (applies new migrations, e.g. 0006).
+2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
+3. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

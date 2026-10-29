@@ -46,7 +46,8 @@ export interface TestDb {
   /** Connection that behaves like a PostgREST request from this auth user. */
   as(userId: string): Promise<pg.Client>;
   /** Create an auth user + activate their app_users profile with this role. */
-  createUser(opts: { email: string; role: 'owner' | 'supervisor' | 'data_entry'; factoryCode?: string | null }): Promise<string>;
+  createUser(opts: { email: string; role: 'owner' | 'supervisor' | 'data_entry'; factoryCode?: string | null; name?: string; password?: string }): Promise<string>;
+  url: string;
   id(table: string, column: string, value: string): Promise<string>;
   close(): Promise<void>;
 }
@@ -70,8 +71,12 @@ export async function freshDb(): Promise<TestDb> {
       clients.push(c);
       return c;
     },
-    async createUser({ email, role, factoryCode = null }) {
-      const { rows } = await sql.query(`insert into auth.users (email) values ($1) returning id`, [email]);
+    url: urlFor(name),
+    async createUser({ email, role, factoryCode = null, name: userName, password = 'password123' }) {
+      const { rows } = await sql.query(
+        `insert into auth.users (email, encrypted_password, raw_user_meta_data) values ($1, $2, $3) returning id`,
+        [email, password, { name: userName ?? email.split('@')[0] }],
+      );
       const id = rows[0].id as string;
       await sql.query(
         `update public.app_users

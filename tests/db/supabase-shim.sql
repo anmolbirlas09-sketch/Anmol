@@ -13,6 +13,7 @@ create table if not exists auth.users (
   id uuid primary key default gen_random_uuid(),
   email text,
   raw_user_meta_data jsonb default '{}'::jsonb,
+  encrypted_password text,          -- the fake gateway stores test passwords in plain text
   created_at timestamptz default now()
 );
 
