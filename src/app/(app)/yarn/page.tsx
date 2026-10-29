@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import Link from 'next/link';
 import { Badge, EmptyState, LinkButton, Notice, PageHeader, Segmented, inputClass } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
@@ -38,7 +39,7 @@ export default async function YarnPage({ searchParams }: PageProps<'/yarn'>) {
 
   return (
     <>
-      <PageHeader title={L.yarn.title} action={<LinkButton href="/yarn/new">+ {L.yarn.newLotShort}</LinkButton>} />
+      <PageHeader subtitle={<LiveRefresh />} title={L.yarn.title} action={<LinkButton href="/yarn/new">+ {L.yarn.newLotShort}</LinkButton>} />
       {saved && (
         <div className="mb-4">
           <Notice tone="ok">{L.yarn.saved(saved)}</Notice>

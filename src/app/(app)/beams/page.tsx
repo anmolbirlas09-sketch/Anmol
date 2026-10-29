@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import Link from 'next/link';
 import { EmptyState, LinkButton, PageHeader, Segmented, inputClass } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
@@ -29,7 +30,7 @@ export default async function BeamsPage({ searchParams }: PageProps<'/beams'>) {
 
   return (
     <>
-      <PageHeader title={L.beam.title} action={<LinkButton href="/beams/new">+ {L.beam.newBeam}</LinkButton>} />
+      <PageHeader subtitle={<LiveRefresh />} title={L.beam.title} action={<LinkButton href="/beams/new">+ {L.beam.newBeam}</LinkButton>} />
       <div className="mb-3 space-y-2">
         <Segmented
           label={L.beam.status}

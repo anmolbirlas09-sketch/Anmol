@@ -218,3 +218,25 @@ export interface GreyStockRow {
   stock_m: number;
   stock_kg: number;
 }
+
+export interface ProductionDaily {
+  entry_date: string;
+  factory_id: string;
+  factory_code: string;
+  loom_id: string;
+  machine_no: string;
+  fabric_quality_id: string;
+  fabric_quality_name: string;
+  takeoff_count: number;
+  meters: number;
+  kgs: number;
+}
+
+export interface YarnStockByQualityFactory {
+  yarn_quality_id: string;
+  yarn_quality_name: string;
+  factory_id: string;
+  factory_code: string;
+  lot_count: number;
+  balance_kg: number;
+}

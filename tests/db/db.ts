@@ -8,13 +8,18 @@ export const TEMPLATE_DB = 'weaving_test_template';
 
 const root = join(import.meta.dirname, '..', '..');
 
-/** Shim + every migration (in order) + seed, as one list of SQL files. */
+/** Shim + every migration (in order) + realtime shim + seed, as one list of SQL files. */
 export function schemaFiles(): string[] {
   const migrations = readdirSync(join(root, 'supabase', 'migrations'))
     .filter((f) => f.endsWith('.sql'))
     .sort()
     .map((f) => join(root, 'supabase', 'migrations', f));
-  return [join(root, 'tests', 'db', 'supabase-shim.sql'), ...migrations, join(root, 'supabase', 'seed.sql')];
+  return [
+    join(root, 'tests', 'db', 'supabase-shim.sql'),
+    ...migrations,
+    join(root, 'tests', 'db', 'realtime-shim.sql'),
+    join(root, 'supabase', 'seed.sql'),
+  ];
 }
 
 export function readSql(file: string): string {

@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import { LinkButton, PageHeader, Segmented } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { listLoomStatus } from '@/lib/data/looms';
@@ -20,7 +21,7 @@ export default async function LoomsPage({ searchParams }: PageProps<'/looms'>) {
 
   return (
     <>
-      <PageHeader title={L.loom.title} subtitle={L.loom.tapForDetails} />
+      <PageHeader title={L.loom.title} subtitle={<span className="flex flex-wrap items-center gap-x-3"><span>{L.loom.tapForDetails}</span><LiveRefresh /></span>} />
       <div className="mb-4 grid grid-cols-2 gap-3">
         <LinkButton href="/takeoff">{L.takeoff.short}</LinkButton>
         <LinkButton href="/looms/load" variant="secondary">{L.loom.loadShort}</LinkButton>

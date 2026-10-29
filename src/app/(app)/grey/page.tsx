@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { LiveRefresh } from '@/components/LiveRefresh';
 import { EmptyState, PageHeader, Segmented, Stat } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { greyStock, groupGreyByQuality } from '@/lib/data/grey';
@@ -20,7 +21,7 @@ export default async function GreyPage({ searchParams }: PageProps<'/grey'>) {
 
   return (
     <>
-      <PageHeader title={L.grey.title} subtitle={L.grey.dispatchSoon} />
+      <PageHeader title={L.grey.title} subtitle={<span className="flex flex-wrap items-center gap-x-3"><span>{L.grey.dispatchSoon}</span><LiveRefresh /></span>} />
       <div className="mb-4">
         <Segmented
           label={L.beam.factory}

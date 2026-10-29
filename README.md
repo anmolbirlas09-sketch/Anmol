@@ -11,15 +11,15 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | 1 | Schema, seed, stock views, DB-enforced rules, RLS | ✅ done |
 | 2 | Sign-in, yarn inward, beam creation, warp/weft consumption, masters | ✅ done |
 | 3 | Loom loading, fabric take-off, grey stock, loom grid | ✅ done |
-| 4 | Live dashboard, realtime updates | ⏳ next |
-| 5 | Dispatch, reports, Excel/PDF export, Excel import, role management UI | — |
+| 4 | Live dashboard, loom grid with detail sheet, realtime updates | ✅ done |
+| 5 | Dispatch, reports, Excel/PDF export, Excel import, role management UI | ⏳ next |
 
 ## Screens
 
 | Path | What it does |
 |---|---|
 | `/login`, `/signup`, `/pending` | Email + password sign-in; new accounts wait for the owner to activate them |
-| `/` | Home: yarn stock total, beams ready / running, low-stock warning, quick actions |
+| `/` | **Dashboard** (live): yarn stock, grey stock (m + kg), looms running / idle of 68, today's production; All / L-76 / L-75 toggle; loom grid (tap a tile → sheet with beam, quality, meters so far, warp/weft kg, Take-off / Load); grey stock and yarn stock tables with low-stock badges |
 | `/yarn` | Lots with live balance; stock-by-quality cards (tap to filter), factory toggle, search, "show used-up lots" |
 | `/yarn/new` | Yarn inward: lot no, quality, kg, factory, supplier, challan, bags/cones, rate. "Save + new" for several lots |
 | `/yarn/[id]` | One lot: received / warp / weft / balance and every movement with a running balance |
@@ -32,6 +32,8 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | `/looms/[id]` | One loom: current beam, take-off form, "Mark beam finished", "Unload" for supervisors (only before any fabric), loom history; load form when idle |
 | `/takeoff` | Fabric take-off: pick a running loom (its beam fills in), meters + kg (live m/kg), shift, roll no, "last fabric — finish the beam" |
 | `/grey` | Grey stock (m and kg) by fabric quality with the factory split; factory toggle |
+
+**Live updates:** the dashboard, Looms, Grey, Yarn and Beams pages listen to Supabase Realtime and refresh themselves within about half a second of anyone saving an entry (a green "Live" dot shows the connection). They also refresh when a phone is unlocked or the tab comes back into view.
 
 All labels are in `src/lib/labels.ts`; formatting (kg 3 dp, m 2 dp, DD-MM-YYYY, IST) in `src/lib/format.ts`; every Supabase query in `src/lib/data/`.
 
@@ -52,6 +54,7 @@ supabase/
     …0005_reference_data.sql  2 factories, 68 looms, default settings (all envs)
     …0006_app_views.sql       views for the screens; fixes v_yarn_ledger for factory-scoped users
     …0007_takeoff_views.sql   v_takeoffs; v_loom_status gains expected length + yarn used
+    …0008_dashboard_views.sql v_production_daily (per day, loom, quality)
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -158,7 +161,7 @@ npm test             # database, unit and data-layer tests (Vitest)
 npm run test:e2e     # builds the app and drives it in a phone-sized Chromium (Playwright)
 ```
 
-The data-layer and browser tests run against `tests/stack/fake-supabase.ts`, a small stand-in for Supabase's gateway: real JWT sign-in, and the subset of PostgREST the app uses, executed as the signed-in user's role so RLS and triggers apply exactly as in production. It is not a full PostgREST; keep app queries to views and simple filters (no embedded joins).
+The data-layer and browser tests run against `tests/stack/fake-supabase.ts`, a small stand-in for Supabase's gateway: real JWT sign-in, and the subset of PostgREST the app uses, executed as the signed-in user's role so RLS and triggers apply exactly as in production. It also serves a minimal Realtime websocket fed by `tests/db/realtime-shim.sql` (pg_notify triggers, test-only). It is not a full PostgREST or Realtime; keep app queries to views and simple filters (no embedded joins).
 
 Database tests cover: the full §8 acceptance test (run as an authenticated owner with RLS on), seed counts, planning formulas and variance flags, audit trail, negative-stock blocking (including a concurrent-write race), one-beam-per-loom, loom status rules, grey stock checks, and role/factory permissions.
 
@@ -166,4 +169,5 @@ Database tests cover: the full §8 acceptance test (run as an authenticated owne
 
 1. `supabase db push` (applies new migrations, e.g. 0006).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
-3. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.
+3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
+4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

@@ -13,7 +13,7 @@ async function signIn(page: Page, email: string) {
   await page.getByLabel('Email').fill(email);
   await page.getByLabel('Password').fill('password123');
   await page.getByRole('button', { name: 'Sign in' }).click();
-  await expect(page.getByRole('heading', { level: 1 })).toContainText('Hello');
+  await expect(page.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeVisible();
 }
 
 async function pick(page: Page, label: string, option: string | RegExp) {
@@ -40,7 +40,7 @@ test('data entry: yarn inward → beam → warp and weft consumption', async ({ 
   await shot(page, '02-home');
 
   // --- Yarn inward A-101 -------------------------------------------------
-  await page.getByRole('link', { name: '+ Yarn inward' }).click();
+  await page.getByRole('link', { name: '+ Inward' }).click();
   await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page.getByText('Required').first()).toBeVisible(); // validation before saving
   await page.getByLabel('Lot no').fill('a-101');

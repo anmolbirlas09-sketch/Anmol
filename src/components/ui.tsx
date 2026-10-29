@@ -132,14 +132,15 @@ export function Segmented({ items, label }: { label: string; items: { href: stri
   );
 }
 
-export function Stat({ label, value, unit, tone }: { label: string; value: string; unit?: string; tone?: Tone }) {
+export function Stat({ label, value, unit, sub, tone, testId }: { label: string; value: string; unit?: string; sub?: string; tone?: Tone; testId?: string }) {
   return (
-    <div className="rounded-xl border border-line bg-surface p-3">
+    <div className="rounded-xl border border-line bg-surface p-3" data-testid={testId}>
       <div className="text-xs font-semibold uppercase tracking-wide text-muted">{label}</div>
       <div className={cx('tnum mt-1 text-xl font-bold', tone === 'bad' && 'text-bad', tone === 'warn' && 'text-warn')}>
         {value}
         {unit && <span className="ml-1 text-sm font-medium text-muted">{unit}</span>}
       </div>
+      {sub && <div className="tnum mt-0.5 text-sm text-muted">{sub}</div>}
     </div>
   );
 }

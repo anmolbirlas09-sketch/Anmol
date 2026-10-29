@@ -7,12 +7,17 @@
 //                 JWT's role with request.jwt.claims set, exactly like PostgREST,
 //                 so row-level security and triggers behave as in production.
 //
+//   /realtime/v1/websocket — Phoenix-protocol postgres_changes, fed by
+//                 pg_notify from tests/db/realtime-shim.sql (no RLS filtering:
+//                 the app only uses events as a "something changed" signal).
+//
 // It is NOT a general PostgREST: embedded resources, nested logic trees and
 // upserts are not implemented. Keep app queries to views + simple filters.
 import http from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import pg from 'pg';
+import { WebSocketServer, type WebSocket } from 'ws';
 
 export interface FakeSupabase {
   url: string;
@@ -407,6 +412,66 @@ export async function startFakeSupabase(opts: { databaseUrl: string; port?: numb
     }
   });
 
+  // ---------------------------------------------------------------- realtime
+  interface Binding { id: number; event: string; schema?: string; table?: string; filter?: string }
+  interface Sub { topic: string; joinRef: string | null; bindings: Binding[] }
+  const subs = new Map<WebSocket, Sub[]>();
+  let nextBindingId = 1;
+  const wss = new WebSocketServer({ noServer: true });
+
+  server.on('upgrade', (req, socket, head) => {
+    if (!req.url?.startsWith('/realtime/v1/websocket')) return void socket.destroy();
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      subs.set(ws, []);
+      ws.on('message', (raw) => {
+        let msg: [string | null, string | null, string, string, Record<string, unknown>];
+        try {
+          msg = JSON.parse(raw.toString());
+        } catch {
+          return;
+        }
+        const [joinRef, ref, topic, event, payload] = msg;
+        const reply = (response: Record<string, unknown> = {}) =>
+          ws.send(JSON.stringify([joinRef, ref, topic, 'phx_reply', { status: 'ok', response }]));
+        if (event === 'phx_join') {
+          const config = (payload?.config ?? {}) as { postgres_changes?: Omit<Binding, 'id'>[] };
+          const bindings = (config.postgres_changes ?? []).map((b) => ({ ...b, id: nextBindingId++ }));
+          subs.get(ws)?.push({ topic, joinRef, bindings });
+          reply({ postgres_changes: bindings });
+        } else if (event === 'phx_leave') {
+          subs.set(ws, (subs.get(ws) ?? []).filter((x) => x.topic !== topic));
+          reply();
+        } else {
+          reply(); // heartbeat, access_token, …
+        }
+      });
+      ws.on('close', () => subs.delete(ws));
+    });
+  });
+
+  const listener = new pg.Client({ connectionString: opts.databaseUrl });
+  await listener.connect();
+  await listener.query('listen fake_realtime');
+  listener.on('notification', (n) => {
+    const change = JSON.parse(n.payload ?? '{}') as { table: string; type: string; id: string | null };
+    for (const [ws, list] of subs) {
+      for (const sub of list) {
+        const ids = sub.bindings
+          .filter((b) => (!b.table || b.table === '*' || b.table === change.table) && (b.event === '*' || b.event === change.type))
+          .map((b) => b.id);
+        if (!ids.length) continue;
+        const rec = { id: change.id };
+        ws.send(JSON.stringify([sub.joinRef, null, sub.topic, 'postgres_changes', {
+          ids,
+          data: {
+            schema: 'public', table: change.table, commit_timestamp: new Date().toISOString(), type: change.type,
+            columns: [], record: change.type === 'DELETE' ? {} : rec, old_record: change.type === 'INSERT' ? {} : rec, errors: null,
+          },
+        }]));
+      }
+    }
+  });
+
   await new Promise<void>((resolve) => server.listen(opts.port ?? 0, '127.0.0.1', resolve));
   const port = (server.address() as { port: number }).port;
 
@@ -415,6 +480,9 @@ export async function startFakeSupabase(opts: { databaseUrl: string; port?: numb
     anonKey,
     pool,
     async close() {
+      for (const ws of wss.clients) ws.terminate();
+      wss.close();
+      await listener.end();
       await new Promise<void>((r) => server.close(() => r()));
       await pool.end();
     },

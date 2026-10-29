@@ -74,6 +74,16 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 43. **Loom tiles in phase 3 are refreshed on navigation**; live updates without refresh come with the phase 4 dashboard.
 44. **Shift names** are still placeholders (Day, Night, A, B, C) until you confirm yours.
 
+## Dashboard & realtime (phase 4)
+45. **Home is the dashboard.** Owners start on "All"; factory staff start on their own factory and can switch.
+46. **Realtime is a "something changed" signal.** The page subscribes to changes on the stock tables and, on any change, re-renders on the server (debounced 0.4 s). Numbers are always read again through RLS, so a realtime message can never show someone data they may not see, and no stock arithmetic happens in the browser.
+47. **Phones sleep and drop websockets,** so pages also refresh when they come back into view. The status dot shows Live / Connecting / Not live.
+48. **Live pages:** Dashboard, Looms, Grey, Yarn list, Beams list. Entry forms (take-off, beam, inward) are not auto-refreshed while someone is typing; the database still checks stock on save.
+49. **Tapping a loom on the dashboard opens a sheet** (beam, quality, meters/kg so far, expected length, warp/weft kg) instead of navigating away. Take-off / Load buttons appear only for looms in the user's own factory.
+50. **Yarn with a factory selected** shows lots *received at* that factory. Low-stock badges show only on "All", because reorder levels are set per quality across both factories (yarn is shared, decision 2).
+51. **"Today"** is the take-off entry date in Asia/Kolkata, not the time it was typed in.
+52. Sample qualities in `seed.sql` that have a low-stock level but no lots show as low stock (0 kg). Set their level to 0, or deactivate them, if they are not used.
+
 ## Testing
 26. Tests run against a **real Postgres**, not mocks, with a small shim for Supabase's `auth.uid()` and roles. Each test file clones a freshly migrated template database.
 37. **Fake Supabase gateway for app tests.** Running Supabase locally needs Docker, which isn't available here, so `tests/stack/fake-supabase.ts` implements GoTrue's password flow and the PostgREST subset the app uses, executing each request as the JWT's role with `request.jwt.claims` set. This keeps RLS, triggers and error codes real. It is not verified against real PostgREST: the first deploy to a Supabase project should include a quick click-through.
