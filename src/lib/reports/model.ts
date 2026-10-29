@@ -1,0 +1,85 @@
+import { fmtDate, fmtKg, fmtM, fmtPct } from '../format';
+import { L } from '../labels';
+
+export const REPORT_KINDS = ['yarn-quality', 'yarn-lot', 'beam-register', 'loom-production', 'grey-summary', 'variance'] as const;
+export type ReportKind = (typeof REPORT_KINDS)[number];
+export const isReportKind = (k: string): k is ReportKind => (REPORT_KINDS as readonly string[]).includes(k);
+
+export type ColumnKind = 'text' | 'date' | 'month' | 'kg' | 'm' | 'pct' | 'int' | 'ratio' | 'flag';
+
+export interface Column {
+  key: string;
+  label: string;
+  kind: ColumnKind;
+  /** Sum this column in the totals row. */
+  total?: boolean;
+}
+
+export type Cell = string | number | boolean | null;
+export type Row = Record<string, Cell>;
+
+export interface ReportParams {
+  from: string; // YYYY-MM-DD
+  to: string;
+  factoryId?: string;
+  factoryCode?: string; // for titles
+  period: 'day' | 'month';
+}
+
+export interface ReportTable {
+  kind: ReportKind;
+  title: string;
+  /** e.g. "01-10-2026 to 29-10-2026 · L-76" */
+  subtitle: string;
+  columns: Column[];
+  rows: Row[];
+  totals: Row | null;
+  /** Rows to highlight (variance over the limit). */
+  flagged?: boolean[];
+}
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/** Display text for a cell, same in HTML and PDF. */
+export function formatCell(kind: ColumnKind, v: Cell): string {
+  if (v === null || v === undefined || v === '') return kind === 'text' ? '' : '—';
+  switch (kind) {
+    case 'kg': return fmtKg(v as number);
+    case 'm': return fmtM(v as number);
+    case 'pct': return fmtPct(v as number);
+    case 'int': return String(v);
+    case 'ratio': return Number(v).toFixed(3);
+    case 'date': return fmtDate(String(v));
+    case 'month': {
+      const [y, m] = String(v).split('-');
+      return `${MONTHS[Number(m) - 1]} ${y}`;
+    }
+    case 'flag': return v ? L.reports.col.flag : '';
+    default: return String(v);
+  }
+}
+
+export const isNumeric = (k: ColumnKind) => k === 'kg' || k === 'm' || k === 'pct' || k === 'int' || k === 'ratio';
+
+/** Sum the `total` columns; round to the column's precision to avoid float noise. */
+export function totalsFor(columns: Column[], rows: Row[]): Row | null {
+  if (!columns.some((c) => c.total) || rows.length === 0) return null;
+  const t: Row = {};
+  for (const c of columns) {
+    if (!c.total) continue;
+    const dp = c.kind === 'm' ? 2 : c.kind === 'int' ? 0 : 3;
+    const sum = rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0);
+    t[c.key] = Math.round(sum * 10 ** dp) / 10 ** dp;
+  }
+  t[columns[0].key] = L.reports.total;
+  return t;
+}
+
+export function subtitleFor(p: ReportParams): string {
+  return `${fmtDate(p.from)} to ${fmtDate(p.to)} · ${p.factoryCode ?? L.app.allFactories}`;
+}
+
+export function fileNameFor(r: ReportTable, p: ReportParams, ext: string): string {
+  const f = (p.factoryCode ?? 'all').replace(/[^A-Za-z0-9-]/g, '');
+  return `${r.kind}_${f}_${p.from}_${p.to}.${ext}`;
+}
