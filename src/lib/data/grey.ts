@@ -18,6 +18,8 @@ export interface GreyByQuality {
   dispatched_kg: number;
   stock_m: number;
   stock_kg: number;
+  /** Production entries without a weighed kg (kg figures are then partial) */
+  unweighed_count: number;
   factories: GreyStockRow[];
 }
 
@@ -27,7 +29,7 @@ export function groupGreyByQuality(rows: GreyStockRow[]): GreyByQuality[] {
   for (const r of rows) {
     const g = map.get(r.fabric_quality_id) ?? {
       fabric_quality_id: r.fabric_quality_id, fabric_quality_name: r.fabric_quality_name,
-      produced_m: 0, produced_kg: 0, dispatched_m: 0, dispatched_kg: 0, stock_m: 0, stock_kg: 0, factories: [],
+      produced_m: 0, produced_kg: 0, dispatched_m: 0, dispatched_kg: 0, stock_m: 0, stock_kg: 0, unweighed_count: 0, factories: [],
     };
     g.produced_m += r.produced_m;
     g.produced_kg += r.produced_kg;
@@ -35,6 +37,7 @@ export function groupGreyByQuality(rows: GreyStockRow[]): GreyByQuality[] {
     g.dispatched_kg += r.dispatched_kg;
     g.stock_m += r.stock_m;
     g.stock_kg += r.stock_kg;
+    g.unweighed_count += Number(r.unweighed_count ?? 0);
     g.factories.push(r);
     map.set(r.fabric_quality_id, g);
   }

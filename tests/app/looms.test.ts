@@ -124,9 +124,10 @@ describe('§8 steps 5–9 through the app’s data layer', () => {
     expect((await listTakeoffs(entry76)).map((t) => t.machine_no)).toEqual(['L76-05']);
   });
 
-  it('7. B-001 wastage = 700 − 650 = 50 kg (7.14%)', async () => {
+  it('7. B-001: metres, weights and m/kg; yarn − fabric weight is not reported as wastage', async () => {
     const b = (await getBeamSummary(entry76, id['B-001']))!;
-    expect([b.total_yarn_kg, b.grey_kg, b.wastage_kg, b.wastage_pct, b.meters_per_kg]).toEqual([700, 650, 50, 7.14, 1.846]);
+    expect([b.total_yarn_kg, b.grey_kg, b.grey_meters, b.wasted_meters, b.net_meters, b.wastage_pct, b.meters_per_kg]).toEqual([700, 650, 1200, 0, 1200, 0, 1.846]);
+    expect([b.waste_kg_actual, b.waste_kg_estimated, b.estimated_kg]).toEqual([null, null, null]);
   });
 
   it('a take-off from an idle loom is refused with a clear message', async () => {

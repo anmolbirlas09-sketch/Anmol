@@ -69,6 +69,7 @@ export default async function GreyPage({ searchParams }: PageProps<'/grey'>) {
                     <dd>{fmtM(g.dispatched_m)} m · {fmtKg(g.dispatched_kg)} kg</dd>
                   </div>
                 </dl>
+                {g.unweighed_count > 0 && <p className="mt-1 text-xs text-muted">{L.grey.unweighed(g.unweighed_count)}</p>}
                 {!factoryId && (
                   <ul className="tnum mt-2 space-y-0.5 border-t border-line pt-2 text-xs text-muted">
                     {g.factories.map((f) => (

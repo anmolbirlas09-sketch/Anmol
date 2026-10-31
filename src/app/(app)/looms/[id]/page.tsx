@@ -5,13 +5,14 @@ import { ConfirmButton } from '@/components/ConfirmButton';
 import { Badge, Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, type Tone } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { getLoomStatus, listPreparedBeams, listTakeoffs } from '@/lib/data/looms';
+import { listFabricQualities } from '@/lib/data/masters';
 import { fmtDateTime, fmtKg, fmtM, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { LoomStatus } from '@/lib/types';
 import { finishBeamAction, unloadBeamAction } from '../actions';
 import { LoadBeamForm } from '../LoadBeamForm';
-import { TakeoffForm } from '../TakeoffForm';
+import { ProductionForm } from '../ProductionForm';
 import { TakeoffList } from '../TakeoffList';
 
 export const metadata: Metadata = { title: L.loom.loom };
@@ -26,9 +27,10 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
   const loom = await getLoomStatus(db, id).catch(() => null);
   if (!loom) notFound();
   const mayWork = !user.factory_id || user.factory_id === loom.factory_id;
-  const [takeoffs, prepared] = await Promise.all([
+  const [takeoffs, prepared, qualities] = await Promise.all([
     listTakeoffs(db, { loomId: id, limit: 20 }),
     loom.status === 'idle' && mayWork ? listPreparedBeams(db) : Promise.resolve([]),
+    loom.beam_id && mayWork ? listFabricQualities(db, { activeOnly: true }) : Promise.resolve([]),
   ]);
   const here = `/looms/${id}`;
   const beamTakeoffs = takeoffs.filter((t) => t.beam_id === loom.beam_id).length;
@@ -67,7 +69,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
             </div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label={L.loom.producedSoFar} value={fmtM(loom.meters_on_beam)} unit="m" />
-              <Stat label={L.grey.produced} value={fmtKg(loom.kgs_on_beam)} unit="kg" />
+              <Stat label={L.production.net} value={fmtM(loom.net_on_beam)} unit="m" sub={`${L.production.wasted} ${fmtM(loom.wasted_on_beam)} m`} />
               <Stat label={L.beam.warp} value={fmtKg(loom.warp_kg)} unit="kg" />
               <Stat label={L.beam.weft} value={fmtKg(loom.weft_kg)} unit="kg" />
             </div>
@@ -77,7 +79,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
             <>
               <SectionTitle>{L.takeoff.title}</SectionTitle>
               <Card>
-                <TakeoffForm looms={[loom]} fixedLoomId={loom.loom_id} today={todayIST()} returnTo={here} />
+                <ProductionForm looms={[loom]} qualities={qualities} fixedLoomId={loom.loom_id} today={todayIST()} returnTo={here} />
               </Card>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <form action={finishBeamAction}>

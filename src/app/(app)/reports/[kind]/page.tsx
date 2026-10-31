@@ -2,11 +2,12 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { LinkButton, PageHeader, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
-import { listFactories } from '@/lib/data/masters';
+import { listLooms } from '@/lib/data/settings';
+import { listFabricQualities, listFactories } from '@/lib/data/masters';
 import { getVarianceThreshold } from '@/lib/data/settings';
 import { L } from '@/lib/labels';
 import { buildReport } from '@/lib/reports/build';
-import { formatCell, isNumeric, isReportKind } from '@/lib/reports/model';
+import { FILTERABLE, formatCell, isNumeric, isReportKind } from '@/lib/reports/model';
 import { reportParams, reportQuery } from '@/lib/reports/params';
 import { createClient } from '@/lib/supabase/server';
 import { ReportFilters } from '../ReportFilters';
@@ -18,8 +19,14 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
   const { kind } = await params;
   if (!isReportKind(kind)) notFound();
   const db = await createClient();
-  const factories = await listFactories(db);
-  const p = reportParams(await searchParams, factories, user.factory_id);
+  const filterable = FILTERABLE.includes(kind);
+  const [factories, looms, qualities] = await Promise.all([
+    listFactories(db),
+    filterable ? listLooms(db) : Promise.resolve([]),
+    filterable ? listFabricQualities(db) : Promise.resolve([]),
+  ]);
+  const visibleLooms = looms.filter((l) => !user.factory_id || l.factory_id === user.factory_id);
+  const p = reportParams(await searchParams, factories, user.factory_id, { looms, qualities });
   const [r, threshold] = await Promise.all([buildReport(db, kind, p), kind === 'variance' ? getVarianceThreshold(db) : null]);
   const q = reportQuery(p);
 
@@ -35,7 +42,15 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
         <LinkButton href={`/reports/${kind}/export?${q}&format=pdf`} variant="secondary" prefetch={false}>{L.reports.pdf} ↓</LinkButton>
       </div>
       <div className="mb-4">
-        <ReportFilters action={`/reports/${kind}`} p={p} factories={factories} lockedFactory={Boolean(user.factory_id)} showPeriod={kind === 'loom-production'} />
+        <ReportFilters
+          action={`/reports/${kind}`}
+          p={p}
+          factories={factories}
+          lockedFactory={Boolean(user.factory_id)}
+          showPeriod={kind === 'loom-production'}
+          looms={filterable ? visibleLooms : undefined}
+          qualities={filterable ? qualities : undefined}
+        />
       </div>
       <p className="mb-2 text-sm text-muted">
         {L.reports.rows(r.rows.length)}

@@ -45,10 +45,19 @@ export default async function DashboardPage({ searchParams }: PageProps<'/'>) {
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Stat testId="stat-yarn" label={L.dashboard.yarnStock} value={fmtKg(d.yarnKg)} unit="kg" />
-        <Stat testId="stat-grey" label={L.dashboard.greyStock} value={fmtM(d.greyM)} unit="m" sub={`${fmtKg(d.greyKg)} kg`} />
+        <Stat testId="stat-grey" label={L.dashboard.greyStock} value={fmtM(d.greyM)} unit="m"
+          sub={`${fmtKg(d.greyKg)} kg${d.greyUnweighed > 0 ? ` (${L.production.weighed})` : ''}`} />
         <Stat testId="stat-looms" label={L.dashboard.looms} value={L.dashboard.loomsValue(d.running, d.looms.length)} sub={L.dashboard.loomsSub(d.running, d.idle, d.maintenance)} />
-        <Stat testId="stat-today" label={L.dashboard.today} value={fmtM(d.todayM)} unit="m" sub={L.dashboard.todaySub(fmtKg(d.todayKg), d.todayTakeoffs)} />
+        <Stat testId="stat-today" label={L.dashboard.today} value={fmtM(d.todayM)} unit="m"
+          sub={L.dashboard.todaySub(fmtM(d.todayNetM), fmtM(d.todayWastedM), d.todayWastagePct !== null ? `${d.todayWastagePct.toFixed(2)}%` : L.app.none)} />
       </div>
+      {(d.todayKg !== null || d.todayEstimatedKg !== null) && (
+        <div className="mt-3">
+          <Stat testId="stat-today-kg" label={L.dashboard.todayKg}
+            value={d.todayKg !== null ? `${fmtKg(d.todayKg)} kg` : `≈${fmtKg(d.todayEstimatedKg)} kg`}
+            sub={L.dashboard.todayKgSub(d.todayEstimatedKg !== null ? `${fmtKg(d.todayEstimatedKg)} kg` : L.app.none, d.todayKg !== null ? `${fmtKg(d.todayKg)} kg` : L.app.none)} />
+        </div>
+      )}
 
       {low.length > 0 && (
         <div className="mt-3">

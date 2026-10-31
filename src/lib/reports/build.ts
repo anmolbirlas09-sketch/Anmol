@@ -1,8 +1,8 @@
 import { fetchAll } from '../data/paging';
 import type { Db } from '../data/client';
 import { L } from '../labels';
-import type { BeamSummary } from '../types';
-import { subtitleFor, totalsFor, type Column, type ReportKind, type ReportParams, type ReportTable, type Row } from './model';
+import type { BeamSummary, FabricRoll, Takeoff } from '../types';
+import { subtitleFor, totalsFor, weightedPct, type Column, type ReportKind, type ReportParams, type ReportTable, type Row } from './model';
 
 const C = L.reports.col;
 
@@ -13,6 +13,25 @@ async function rpcAll(db: Db, fn: string, args: Record<string, unknown>, order: 
 function table(kind: ReportKind, p: ReportParams, columns: Column[], rows: Row[], flagged?: boolean[]): ReportTable {
   return { kind, title: L.reports.kinds[kind].title, subtitle: subtitleFor(p), columns, rows, totals: totalsFor(columns, rows), flagged };
 }
+
+/** Metre-first production columns (shared by production, loom and beam reports). */
+const metreColumns: Column[] = [
+  { key: 'meters', label: C.totalM, kind: 'm', total: true },
+  { key: 'wasted_meters', label: C.wastedM, kind: 'm', total: true },
+  { key: 'net_meters', label: C.netM, kind: 'm', total: true },
+  { key: 'wastage_pct', label: C.wastageMPct, kind: 'pct', total: weightedPct('wasted_meters', 'meters') },
+];
+
+/** Weights: blank when not recorded; estimated and actual kept apart. */
+const kgColumns: Column[] = [
+  { key: 'estimated_kg', label: C.estKg, kind: 'kg', total: true },
+  { key: 'kgs', label: C.weighedKg, kind: 'kg', total: true },
+  { key: 'warp_kg', label: C.warpKg, kind: 'kg', total: true },
+  { key: 'weft_kg', label: C.weftKg, kind: 'kg', total: true },
+  { key: 'total_yarn_kg', label: C.totalYarnKg, kind: 'kg', total: true },
+  { key: 'waste_kg', label: C.wasteKgActual, kind: 'kg', total: true },
+  { key: 'waste_kg_estimated', label: C.wasteKgEst, kind: 'kg', total: true },
+];
 
 const yarnCols: Column[] = [
   { key: 'opening_kg', label: C.opening, kind: 'kg', total: true },
@@ -60,30 +79,94 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
       ], rows);
     }
     case 'loom-production': {
-      const rows = await rpcAll(db, 'report_loom_production', { ...args, p_period: p.period }, 'period');
+      const rows = await rpcAll(db, 'report_loom_production', {
+        ...args, p_period: p.period, p_loom_id: p.loomId ?? null, p_fabric_quality_id: p.fabricQualityId ?? null, p_beam_no: p.beamNo ?? null,
+      }, 'period');
       return table(kind, p, [
         { key: 'period', label: C.period, kind: p.period === 'month' ? 'month' : 'date' },
         { key: 'factory_code', label: C.factory, kind: 'text' },
         { key: 'machine_no', label: C.loom, kind: 'text' },
         { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
         { key: 'takeoff_count', label: C.takeoffs, kind: 'int', total: true },
-        { key: 'meters', label: C.meters, kind: 'm', total: true },
-        { key: 'kgs', label: C.kgs, kind: 'kg', total: true },
+        ...metreColumns,
+        ...kgColumns,
       ], rows.sort((a, b) => String(a.period).localeCompare(String(b.period)) || String(b.factory_code).localeCompare(String(a.factory_code)) || String(a.machine_no).localeCompare(String(b.machine_no))));
+    }
+    case 'production': {
+      const entries = await fetchAll<Takeoff>((from, to) => {
+        let q = db.from('v_takeoffs').select('*').gte('entry_date', p.from).lte('entry_date', p.to);
+        if (p.factoryId) q = q.eq('factory_id', p.factoryId);
+        if (p.loomId) q = q.eq('loom_id', p.loomId);
+        if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+        if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
+        return q.order('entry_date').order('created_at').range(from, to);
+      });
+      const rows: Row[] = entries.map((t) => ({
+        entry_date: t.entry_date, shift: t.shift ? (L.takeoff.shifts[t.shift] ?? t.shift) : null, machine_no: t.machine_no, beam_no: t.beam_no,
+        fabric_quality_name: t.fabric_quality_name, meters: t.meters, wasted_meters: t.wasted_meters, net_meters: t.net_meters,
+        wastage_pct: t.wastage_pct, roll_count: t.roll_count, roll_length_m: t.roll_length_m, gsm: t.gsm, width_m: t.width_m,
+        estimated_kg: t.estimated_kg, kgs: t.kgs, warp_kg: t.warp_kg, weft_kg: t.weft_kg, total_yarn_kg: t.total_yarn_kg,
+        waste_kg: t.waste_kg, waste_kg_estimated: t.waste_kg_estimated, weight_wastage_pct: t.weight_wastage_pct, waste_pct_entered: t.waste_pct_entered,
+      }));
+      return table(kind, p, [
+        { key: 'entry_date', label: C.date, kind: 'date' },
+        { key: 'shift', label: C.shift, kind: 'text' },
+        { key: 'machine_no', label: C.loom, kind: 'text' },
+        { key: 'beam_no', label: C.beam, kind: 'text' },
+        { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        ...metreColumns,
+        { key: 'roll_count', label: C.rolls, kind: 'int', total: true },
+        { key: 'roll_length_m', label: C.rollLength, kind: 'm' },
+        { key: 'gsm', label: C.gsm, kind: 'ratio' },
+        { key: 'width_m', label: C.width, kind: 'ratio' },
+        ...kgColumns,
+        { key: 'weight_wastage_pct', label: C.wastePctActual, kind: 'pct' },
+        { key: 'waste_pct_entered', label: C.wastePctEntered, kind: 'pct' },
+      ], rows);
+    }
+    case 'rolls': {
+      const rolls = await fetchAll<FabricRoll>((from, to) => {
+        let q = db.from('v_fabric_rolls').select('*').gte('entry_date', p.from).lte('entry_date', p.to);
+        if (p.factoryId) q = q.eq('factory_id', p.factoryId);
+        if (p.loomId) q = q.eq('loom_id', p.loomId);
+        if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+        if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
+        return q.order('entry_date').order('roll_no').range(from, to);
+      });
+      const rows: Row[] = rolls.map((r) => ({
+        roll_no: r.roll_no, entry_date: r.entry_date, machine_no: r.machine_no, beam_no: r.beam_no,
+        fabric_quality_name: r.fabric_quality_name, factory_code: r.factory_code, meters: r.meters,
+      }));
+      return table(kind, p, [
+        { key: 'roll_no', label: C.rollNo, kind: 'text' },
+        { key: 'entry_date', label: C.date, kind: 'date' },
+        { key: 'machine_no', label: C.loom, kind: 'text' },
+        { key: 'beam_no', label: C.beam, kind: 'text' },
+        { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'factory_code', label: C.factory, kind: 'text' },
+        { key: 'meters', label: C.meters, kind: 'm', total: true },
+      ], rows);
     }
     case 'beam-register':
     case 'variance': {
       const beams = await fetchAll<BeamSummary>((from, to) => {
         let q = db.from('v_beam_summary').select('*').gte('created_date', p.from).lte('created_date', p.to);
         if (p.factoryId) q = q.eq('factory_id', p.factoryId);
+        if (p.loomId) q = q.eq('loom_id', p.loomId);
+        if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+        if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
         return q.order('created_date').order('beam_no').range(from, to);
       });
       if (kind === 'beam-register') {
         const rows: Row[] = beams.map((b) => ({
           beam_no: b.beam_no, created_date: b.created_date, factory_code: b.factory_code, fabric_quality_name: b.fabric_quality_name,
-          machine_no: b.machine_no, status: L.beam.statuses[b.status], warp_kg: b.warp_kg, weft_kg: b.weft_kg, total_yarn_kg: b.total_yarn_kg,
-          grey_meters: b.grey_meters, grey_kg: b.grey_kg, wastage_kg: b.takeoff_count ? b.wastage_kg : null,
-          wastage_pct: b.takeoff_count ? b.wastage_pct : null, meters_per_kg: b.meters_per_kg,
+          machine_no: b.machine_no, status: L.beam.statuses[b.status],
+          warp_issued: b.warp_kg, weft_issued: b.weft_kg, yarn_issued: b.total_yarn_kg,
+          meters: b.takeoff_count ? b.grey_meters : null, wasted_meters: b.takeoff_count ? b.wasted_meters : null,
+          net_meters: b.takeoff_count ? b.net_meters : null, wastage_pct: b.wastage_pct, roll_count: b.roll_count,
+          estimated_kg: b.estimated_kg, kgs: b.grey_kg, warp_kg: b.prod_warp_kg, weft_kg: b.prod_weft_kg, total_yarn_kg: b.prod_total_yarn_kg,
+          waste_kg: b.waste_kg_actual, waste_kg_estimated: b.waste_kg_estimated, weight_wastage_pct: b.weight_wastage_pct_actual,
+          meters_per_kg: b.meters_per_kg,
         }));
         return table(kind, p, [
           { key: 'beam_no', label: C.beam, kind: 'text' },
@@ -92,13 +175,13 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
           { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
           { key: 'machine_no', label: C.loom, kind: 'text' },
           { key: 'status', label: C.status, kind: 'text' },
-          { key: 'warp_kg', label: C.warp, kind: 'kg', total: true },
-          { key: 'weft_kg', label: C.weft, kind: 'kg', total: true },
-          { key: 'total_yarn_kg', label: C.yarn, kind: 'kg', total: true },
-          { key: 'grey_meters', label: C.greyM, kind: 'm', total: true },
-          { key: 'grey_kg', label: C.greyKg, kind: 'kg', total: true },
-          { key: 'wastage_kg', label: C.wastageKg, kind: 'kg', total: true },
-          { key: 'wastage_pct', label: C.wastagePct, kind: 'pct' },
+          { key: 'warp_issued', label: C.warpIssued, kind: 'kg', total: true },
+          { key: 'weft_issued', label: C.weftIssued, kind: 'kg', total: true },
+          { key: 'yarn_issued', label: C.yarnIssued, kind: 'kg', total: true },
+          ...metreColumns,
+          { key: 'roll_count', label: C.rolls, kind: 'int', total: true },
+          ...kgColumns,
+          { key: 'weight_wastage_pct', label: C.wastePctActual, kind: 'pct' },
           { key: 'meters_per_kg', label: C.mPerKg, kind: 'ratio' },
         ], rows);
       }

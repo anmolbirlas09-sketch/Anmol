@@ -120,14 +120,20 @@ describe('§8 acceptance', () => {
     ]);
   });
 
-  it('7. B-001 wastage = 700 − 650 = 50 kg (7.14%)', async () => {
+  // §8 step 7 originally defined wastage as yarn used − fabric weight (700 − 650 = 50 kg).
+  // Changed on the owner's instruction (metre-first production, migration 0010): that
+  // difference is NOT wastage. Fabric wastage is recorded in metres at take-off, and
+  // KG wastage only when actually measured (or given as a %).
+  it('7. B-001: yarn and fabric weight are reported, but their difference is not called wastage', async () => {
     const { rows } = await owner.query(
-      `select total_yarn_kg, grey_kg, wastage_kg, wastage_pct from v_beam_summary where beam_no = 'B-001'`,
+      `select total_yarn_kg, grey_kg, grey_meters, wasted_meters, net_meters, wastage_pct, waste_kg_actual, waste_kg_estimated
+       from v_beam_summary where beam_no = 'B-001'`,
     );
     expect(num(rows[0].total_yarn_kg)).toBe(700);
     expect(num(rows[0].grey_kg)).toBe(650);
-    expect(num(rows[0].wastage_kg)).toBe(50);
-    expect(num(rows[0].wastage_pct)).toBe(7.14);
+    expect([num(rows[0].grey_meters), num(rows[0].wasted_meters), num(rows[0].net_meters), num(rows[0].wastage_pct)]).toEqual([1200, 0, 1200, 0]);
+    expect(rows[0].waste_kg_actual).toBeNull();
+    expect(rows[0].waste_kg_estimated).toBeNull();
   });
 
   it('8. dispatch 500 m / 270 kg of Mono White → grey stock 1,500 m / 800 kg', async () => {

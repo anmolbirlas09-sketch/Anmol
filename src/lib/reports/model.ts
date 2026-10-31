@@ -1,7 +1,10 @@
 import { fmtDate, fmtKg, fmtM, fmtPct } from '../format';
 import { L } from '../labels';
 
-export const REPORT_KINDS = ['yarn-quality', 'yarn-lot', 'beam-register', 'loom-production', 'grey-summary', 'variance'] as const;
+export const REPORT_KINDS = ['production', 'loom-production', 'beam-register', 'rolls', 'yarn-quality', 'yarn-lot', 'grey-summary', 'variance'] as const;
+
+/** Reports that can be narrowed to a loom, fabric quality or beam. */
+export const FILTERABLE: readonly ReportKind[] = ['production', 'loom-production', 'beam-register', 'rolls', 'variance'];
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export const isReportKind = (k: string): k is ReportKind => (REPORT_KINDS as readonly string[]).includes(k);
 
@@ -11,8 +14,8 @@ export interface Column {
   key: string;
   label: string;
   kind: ColumnKind;
-  /** Sum this column in the totals row. */
-  total?: boolean;
+  /** Sum this column in the totals row, or compute the total cell (e.g. a weighted %). */
+  total?: boolean | ((rows: Row[]) => Cell);
 }
 
 export type Cell = string | number | boolean | null;
@@ -24,6 +27,11 @@ export interface ReportParams {
   factoryId?: string;
   factoryCode?: string; // for titles
   period: 'day' | 'month';
+  loomId?: string;
+  loomNo?: string; // for titles
+  fabricQualityId?: string;
+  fabricQualityName?: string; // for titles
+  beamNo?: string;
 }
 
 export interface ReportTable {
@@ -67,16 +75,34 @@ export function totalsFor(columns: Column[], rows: Row[]): Row | null {
   const t: Row = {};
   for (const c of columns) {
     if (!c.total) continue;
+    if (typeof c.total === 'function') {
+      t[c.key] = c.total(rows);
+      continue;
+    }
+    // Only recorded values count; if none were recorded the total stays empty (not 0).
+    const known = rows.map((r) => r[c.key]).filter((v) => v !== null && v !== undefined && v !== '');
+    if (!known.length) {
+      t[c.key] = null;
+      continue;
+    }
     const dp = c.kind === 'm' ? 2 : c.kind === 'int' ? 0 : 3;
-    const sum = rows.reduce((s, r) => s + (Number(r[c.key]) || 0), 0);
+    const sum = known.reduce<number>((s, v) => s + Number(v), 0);
     t[c.key] = Math.round(sum * 10 ** dp) / 10 ** dp;
   }
   t[columns[0].key] = L.reports.total;
   return t;
 }
 
+/** Totals-row helper: Σ wasted ÷ Σ total × 100 (weighted, not an average of %s). */
+export const weightedPct = (partKey: string, wholeKey: string) => (rows: Row[]): Cell => {
+  const whole = rows.reduce((s, r) => s + (Number(r[wholeKey]) || 0), 0);
+  if (!whole) return null;
+  return Math.round((rows.reduce((s, r) => s + (Number(r[partKey]) || 0), 0) / whole) * 10000) / 100;
+};
+
 export function subtitleFor(p: ReportParams): string {
-  return `${fmtDate(p.from)} to ${fmtDate(p.to)} · ${p.factoryCode ?? L.app.allFactories}`;
+  const extra = [p.loomNo, p.fabricQualityName, p.beamNo && `${L.reports.beamNo} ${p.beamNo}`].filter(Boolean);
+  return [`${fmtDate(p.from)} to ${fmtDate(p.to)}`, p.factoryCode ?? L.app.allFactories, ...extra].join(' · ');
 }
 
 export function fileNameFor(r: ReportTable, p: ReportParams, ext: string): string {

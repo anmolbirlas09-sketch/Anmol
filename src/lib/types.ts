@@ -122,11 +122,26 @@ export interface BeamSummary {
   variance_threshold_pct: number;
   warp_variance_flag: boolean;
   weft_variance_flag: boolean;
+  /** Total production metres */
   grey_meters: number;
-  grey_kg: number;
-  takeoff_count: number;
-  wastage_kg: number;
+  wasted_meters: number;
+  net_meters: number;
+  /** Fabric wastage % by metres */
   wastage_pct: number | null;
+  takeoff_count: number;
+  roll_count: number;
+  /** ACTUAL weighed fabric kg (null when nothing weighed) */
+  grey_kg: number | null;
+  weighed_count: number;
+  /** ESTIMATED fabric kg from GSM × width (null when unknown) */
+  estimated_kg: number | null;
+  /** Yarn recorded at production (null when not recorded) */
+  prod_warp_kg: number | null;
+  prod_weft_kg: number | null;
+  prod_total_yarn_kg: number | null;
+  waste_kg_actual: number | null;
+  waste_kg_estimated: number | null;
+  weight_wastage_pct_actual: number | null;
   meters_per_kg: number | null;
 }
 
@@ -179,14 +194,18 @@ export interface LoomStatusRow {
   kgs_on_beam: number | null;
   expected_fabric_length_m: number | null;
   total_yarn_kg: number | null;
+  wasted_on_beam: number | null;
+  net_on_beam: number | null;
 }
 
 export interface Takeoff {
   id: string;
   entry_date: string;
   shift: string | null;
+  /** Total production metres */
   meters: number;
-  kgs: number;
+  /** ACTUAL weighed kg, null when not weighed */
+  kgs: number | null;
   roll_no: string | null;
   notes: string | null;
   created_at: string;
@@ -202,6 +221,39 @@ export interface Takeoff {
   fabric_quality_name: string;
   created_by: string | null;
   created_by_name: string | null;
+  wasted_meters: number;
+  net_meters: number;
+  wastage_pct: number;
+  roll_length_m: number | null;
+  gsm: number | null;
+  width_m: number | null;
+  estimated_kg: number | null;
+  warp_kg: number | null;
+  weft_kg: number | null;
+  total_yarn_kg: number | null;
+  waste_kg: number | null;
+  waste_pct_entered: number | null;
+  waste_kg_estimated: number | null;
+  weight_wastage_pct: number | null;
+  roll_count: number;
+}
+
+export interface FabricRoll {
+  id: string;
+  roll_no: string;
+  seq: number;
+  meters: number;
+  production_id: string;
+  entry_date: string;
+  shift: string | null;
+  beam_id: string;
+  beam_no: string;
+  loom_id: string;
+  machine_no: string;
+  factory_id: string;
+  factory_code: string;
+  fabric_quality_id: string;
+  fabric_quality_name: string;
 }
 
 export interface GreyStockRow {
@@ -217,6 +269,8 @@ export interface GreyStockRow {
   adjusted_kg: number;
   stock_m: number;
   stock_kg: number;
+  /** Take-offs without a weighed kg: kg stock is then incomplete */
+  unweighed_count: number;
 }
 
 export interface ProductionDaily {
@@ -228,8 +282,18 @@ export interface ProductionDaily {
   fabric_quality_id: string;
   fabric_quality_name: string;
   takeoff_count: number;
+  /** Total production metres */
   meters: number;
-  kgs: number;
+  /** ACTUAL weighed kg (null when none weighed) */
+  kgs: number | null;
+  wasted_meters: number;
+  net_meters: number;
+  estimated_kg: number | null;
+  warp_kg: number | null;
+  weft_kg: number | null;
+  total_yarn_kg: number | null;
+  waste_kg: number | null;
+  waste_kg_estimated: number | null;
 }
 
 export interface YarnStockByQualityFactory {
@@ -245,7 +309,7 @@ export interface Dispatch {
   id: string;
   entry_date: string;
   meters: number;
-  kgs: number;
+  kgs: number | null;
   roll_refs: string | null;
   party: string | null;
   challan_no: string | null;

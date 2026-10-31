@@ -99,12 +99,71 @@ export const takeoffSchema = z.object({
 });
 export type TakeoffInput = z.infer<typeof takeoffSchema>;
 
+/** Required number that may be 0 (e.g. wasted metres when nothing was wasted). */
+function quantityOrZero(dp: number) {
+  return z
+    .string({ error: L.app.required })
+    .trim()
+    .min(1, L.app.required)
+    .transform((s) => s.replace(/,/g, ''))
+    .refine((s) => /^\d*\.?\d+$/.test(s), L.errors.number)
+    .refine((s) => decimals(s) <= dp, L.errors.maxDecimals(dp))
+    .transform(Number);
+}
+
+const optionalPositive = (dp: number) => optionalNumber({ dp }).refine((n) => n === undefined || n > 0, L.errors.positive);
+
+/**
+ * Metre-first production entry. Metres, wasted metres and roll length are
+ * required; every weight is optional and stays undefined (NULL) when blank.
+ */
+export const productionSchema = z
+  .object({
+    loom_id: uuid(),
+    fabric_quality_id: uuid(),
+    meters: meters(),
+    wasted_meters: quantityOrZero(2),
+    roll_length_m: meters(),
+    entry_date: isoDate(),
+    shift: z.preprocess(blankToUndefined, z.enum(SHIFTS).optional()),
+    gsm: optionalPositive(2),
+    width_m: optionalPositive(3),
+    weighed_kg: optionalPositive(3),
+    warp_kg: optionalNumber({ dp: 3 }),
+    weft_kg: optionalNumber({ dp: 3 }),
+    waste_kg: optionalNumber({ dp: 3 }),
+    waste_pct: optionalNumber({ dp: 2 }),
+    notes: optionalText(),
+    finish_beam: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+    client_ref: optionalUuid(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.wasted_meters > v.meters) {
+      ctx.addIssue({ code: 'custom', path: ['wasted_meters'], message: L.production.wastedTooMuch });
+    }
+    const net = v.meters - Math.min(v.wasted_meters, v.meters);
+    if (net > 0 && Math.ceil(net / v.roll_length_m) > 500) {
+      ctx.addIssue({ code: 'custom', path: ['roll_length_m'], message: L.production.tooManyRolls });
+    }
+    if (v.waste_kg !== undefined && v.waste_pct !== undefined) {
+      ctx.addIssue({ code: 'custom', path: ['waste_pct'], message: L.production.wasteOneBasis });
+    }
+    if (v.waste_pct !== undefined && v.waste_pct > 100) {
+      ctx.addIssue({ code: 'custom', path: ['waste_pct'], message: L.errors.between(0, 100) });
+    }
+    if (v.waste_kg !== undefined && v.warp_kg !== undefined && v.weft_kg !== undefined && v.waste_kg > v.warp_kg + v.weft_kg) {
+      ctx.addIssue({ code: 'custom', path: ['waste_kg'], message: L.production.wasteMoreThanYarn });
+    }
+  });
+export type ProductionInputForm = z.infer<typeof productionSchema>;
+
 export const dispatchSchema = z.object({
   fabric_quality_id: uuid(),
   factory_id: uuid(),
   entry_date: isoDate(),
   meters: meters(),
-  kgs: kg(),
+  // Metre-first: kg is recorded when the fabric was weighed.
+  kgs: optionalNumber({ dp: 3 }).refine((n) => n === undefined || n > 0, L.errors.positive),
   party: z.preprocess(blankToUndefined, z.string().trim().max(200).optional()),
   challan_no: z.preprocess(blankToUndefined, z.string().trim().max(50).optional()),
   roll_refs: optionalText(),

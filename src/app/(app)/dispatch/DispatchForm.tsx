@@ -33,7 +33,9 @@ export function DispatchForm({ stock, factories, defaultFactoryId, today }: { st
 
   const atFactory = stock.filter((s) => s.factory_id === factoryId && (s.stock_m > 0 || s.stock_kg > 0));
   const row = atFactory.find((s) => s.fabric_quality_id === qualityId);
-  const over = row && ((num(meters) > 0 && num(meters) > row.stock_m + 1e-9) || (num(kgs) > 0 && num(kgs) > row.stock_kg + 1e-9));
+  // Metres always; kg only when every production entry was weighed (otherwise kg stock is not known).
+  const kgKnown = row ? Number(row.unweighed_count ?? 0) === 0 : false;
+  const over = row && ((num(meters) > 0 && num(meters) > row.stock_m + 1e-9) || (kgKnown && num(kgs) > 0 && num(kgs) > row.stock_kg + 1e-9));
   const err = state.fieldErrors ?? {};
 
   return (
@@ -57,7 +59,7 @@ export function DispatchForm({ stock, factories, defaultFactoryId, today }: { st
         <Notice tone="warn">{L.dispatch.noStock}</Notice>
       ) : (
         <Field label={L.dispatch.fabricQuality} htmlFor="fabric_quality_id" error={err.fabric_quality_id}
-          hint={row ? L.dispatch.inStock(fmtM(row.stock_m), fmtKg(row.stock_kg)) : undefined}>
+          hint={row ? (kgKnown ? L.dispatch.inStock(fmtM(row.stock_m), fmtKg(row.stock_kg)) : L.dispatch.inStockM(fmtM(row.stock_m))) : undefined}>
           <Combobox
             key={factoryId}
             id="fabric_quality_id"
@@ -74,7 +76,7 @@ export function DispatchForm({ stock, factories, defaultFactoryId, today }: { st
         <Field label={L.dispatch.meters} htmlFor="meters" error={err.meters}>
           <input id="meters" name="meters" value={meters} onChange={(e) => setMeters(e.target.value)} inputMode="decimal" autoComplete="off" className={`${inputClass} tnum text-lg font-semibold`} />
         </Field>
-        <Field label={L.dispatch.kgs} htmlFor="kgs" error={err.kgs}>
+        <Field label={L.dispatch.kgs} htmlFor="kgs" error={err.kgs} optional>
           <input id="kgs" name="kgs" value={kgs} onChange={(e) => setKgs(e.target.value)} inputMode="decimal" autoComplete="off" className={`${inputClass} tnum text-lg font-semibold`} />
         </Field>
       </div>

@@ -97,9 +97,9 @@ describe('§8 acceptance, end to end through the app’s data layer', () => {
     expect(await greyTotal(owner)).toEqual({ m: 2000, kg: 1070 });
   });
 
-  it('7. B-001 wastage 50 kg (7.14%)', async () => {
+  it('7. B-001: no wastage recorded → 0 m wasted and no KG wastage (yarn − fabric is not wastage)', async () => {
     const b = (await getBeamSummary(owner, id['B-001']))!;
-    expect([b.wastage_kg, b.wastage_pct]).toEqual([50, 7.14]);
+    expect([b.wasted_meters, b.wastage_pct, b.waste_kg_actual, b.waste_kg_estimated]).toEqual([0, 0, null, null]);
   });
 
   it('8. dispatch 500 m / 270 kg of Mono White → grey 1,500 m / 800 kg', async () => {
@@ -155,10 +155,11 @@ describe('reports', () => {
 
   it('beam register and variance', async () => {
     const reg = await buildReport(owner, 'beam-register', p());
-    expect(reg.rows.map((x) => [x.beam_no, x.machine_no, x.total_yarn_kg, x.grey_kg, x.wastage_kg, x.wastage_pct])).toEqual([
-      ['B-001', 'L76-05', 700, 650, 50, 7.14],
-      ['B-002', 'L75-12', 450, 420, 30, 6.67],
+    expect(reg.rows.map((x) => [x.beam_no, x.machine_no, x.yarn_issued, x.meters, x.wasted_meters, x.net_meters, x.wastage_pct, x.kgs, x.waste_kg])).toEqual([
+      ['B-001', 'L76-05', 700, 1200, 0, 1200, 0, 650, null],
+      ['B-002', 'L75-12', 450, 800, 0, 800, 0, 420, null],
     ]);
+    expect(reg.totals).toMatchObject({ meters: 2000, wasted_meters: 0, wastage_pct: 0, waste_kg: null });
     const v = await buildReport(owner, 'variance', p());
     expect(v.rows[0]).toMatchObject({ beam_no: 'B-001', planned_warp_kg: 259.56, warp_kg: 400, warp_variance_pct: 54.11, flag: true });
     expect(v.flagged).toEqual([true, true]);
