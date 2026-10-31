@@ -45,6 +45,7 @@ test('owner creates Quality 101 with three specifications; reed and ends per inc
   for (const [i, [reed, epi, warp, weft]] of specs.entries()) {
     await page.getByRole('link', { name: '+ Add specification' }).click();
     await expect(page.getByTestId('spec-code')).toHaveText('Assigned automatically when saved');
+    await page.waitForLoadState('networkidle');
     await page.getByLabel('Reed').fill(reed);
     await page.getByLabel('Total ends per inch').fill(epi);
     await pickYarn(page, 'Warp yarn', warp);
@@ -61,7 +62,10 @@ test('owner creates Quality 101 with three specifications; reed and ends per inc
 
   // Same combination again is refused
   await page.getByRole('link', { name: '+ Add specification' }).click();
+  await expect(page.getByTestId('spec-code')).toHaveText('Assigned automatically when saved');
+  await page.waitForLoadState('networkidle'); // let the form hydrate before typing
   await page.getByLabel('Reed').fill('48');
+  await expect(page.getByLabel('Reed')).toHaveValue('48');
   await page.getByLabel('Total ends per inch').fill('52');
   await pickYarn(page, 'Warp yarn', 'PP 0.17');
   await pickYarn(page, 'Weft yarn', 'PP 0.17');
@@ -81,7 +85,8 @@ test('a beam of S2 is woven and recorded against S2, with its reed, ends and yar
   await page.goto('/beams/new');
   await page.getByLabel('Beam no').fill('q101-b2');
   await page.getByLabel('Fabric quality', { exact: true }).selectOption({ label: 'Quality 101' });
-  await page.getByLabel('Specification', { exact: true }).selectOption({ label: /QUALITY101-S2/ });
+  const specSelect = page.getByLabel('Specification', { exact: true });
+  await specSelect.selectOption((await specSelect.locator('option', { hasText: 'QUALITY101-S2' }).getAttribute('value'))!);
   await expect(page.getByTestId('spec-details')).toContainText('52');
   await expect(page.getByTestId('spec-details')).toContainText('56');
   await page.getByLabel('Warp length (m)').fill('2000');
@@ -117,14 +122,15 @@ test('stock, dashboard and report show the parent with its specifications', asyn
 
   await page.goto('/reports');
   await page.getByRole('link', { name: /Specification and quality summary/ }).click();
-  await page.getByLabel('Fabric quality', { exact: true }).selectOption({ label: 'Quality 101' });
+  // (report filter labels wrap their dropdowns, so match the label text partially)
+  await page.getByLabel('Fabric quality').selectOption({ label: 'Quality 101' });
   await page.getByRole('button', { name: 'Show' }).click();
   const t = page.getByRole('table', { name: 'Specification and quality summary' });
   await expect(t.locator('tr[data-level="parent"]')).toContainText('3 specifications');
   await expect(t.locator('tr[data-level="spec"]')).toHaveCount(3);
   await expect(t.locator('tr[data-level="spec"]').filter({ hasText: 'QUALITY101-S2' })).toContainText('288.00');
   await shot(page, '30-spec-report');
-  await page.getByLabel('Specifications', { exact: true }).selectOption('0');
+  await page.getByLabel('Specifications').selectOption('0');
   await page.getByRole('button', { name: 'Show' }).click();
   await expect(t.locator('tr[data-level="spec"]')).toHaveCount(0);
 });

@@ -1,6 +1,6 @@
 import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { IMPORT_COLUMNS, SHEET_NAME, parseWorkbook, readWorkbook, templateWorkbook, type ImportMasters } from '@/lib/importer';
+import { IMPORT_COLUMNS, SHEET_NAME, parseWorkbook, readWorkbook, templateWorkbook, type GreyImportRow, type ImportMasters } from '@/lib/importer';
 
 const masters: ImportMasters = {
   yarnQualities: [{ id: 'yq-white', name: 'Mono 0.25 White' }, { id: 'yq-black', name: 'Mono 0.25 Black' }],
@@ -112,6 +112,6 @@ describe('grey import', () => {
     const wb = await fileWith('grey', [['Mono White', '', 'L-76', 10, 5], ['Mono White', 'MONOWHITE-S2', 'L-76', 10, 5]]);
     const r = parseWorkbook(wb, 'grey', m, TODAY);
     expect(r.errors).toEqual([{ row: 2, message: 'Mono White has 2 specifications: give the Specification ID' }]);
-    expect(r.rows.map((x) => x.spec_code)).toEqual(['MONOWHITE-S2']);
+    expect((r.rows as GreyImportRow[]).map((x) => x.spec_code)).toEqual(['MONOWHITE-S2']);
   });
 });

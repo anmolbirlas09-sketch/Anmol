@@ -98,7 +98,7 @@ test('reports: on screen, Excel and PDF', async ({ page }) => {
   const ws = wb.worksheets[0];
   expect(ws.getCell('A1').value).toBe('Grey stock summary');
   const green = ws.getRows(5, ws.rowCount)!.find((r) => r.getCell(1).value === 'Green Shade Net')!;
-  expect([green.getCell(11).value, green.getCell(12).value]).toEqual([1500, 800]); // Closing m, kg
+  expect([green.getCell(2).value, green.getCell(12).value, green.getCell(13).value]).toEqual(['GREENSHADENET-S1', 1500, 800]); // Specification, closing m, kg
 
   const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: /^PDF/ }).click()]);
   expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);
