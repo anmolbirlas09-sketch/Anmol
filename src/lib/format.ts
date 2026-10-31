@@ -37,6 +37,18 @@ export function fmtDateTime(v: string | null | undefined, withTime = true): stri
   return withTime ? `${date} ${parts.hour}:${parts.minute}` : date;
 }
 
+/**
+ * The shift running now in Asia/Kolkata and the production date it belongs to.
+ * Day 08:00–20:00; night 20:00–08:00, dated by the evening it started, so an
+ * entry at 02:00 on the 1st is the night shift of the 31st.
+ */
+export function currentShift(now = new Date()): { shift: 'day' | 'night'; date: string } {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', hour12: false }).format(now)) % 24;
+  if (hour >= 8 && hour < 20) return { shift: 'day', date: todayIST(now) };
+  if (hour >= 20) return { shift: 'night', date: todayIST(now) };
+  return { shift: 'night', date: todayIST(new Date(now.getTime() - 24 * 3600 * 1000)) };
+}
+
 /** Today in Asia/Kolkata as YYYY-MM-DD (for <input type="date"> defaults). */
 export function todayIST(now = new Date()): string {
   const parts = Object.fromEntries(

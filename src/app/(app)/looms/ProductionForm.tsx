@@ -54,13 +54,15 @@ function Figure({ label, value, tone, testId }: { label: string; value: string; 
  * 5 net / wastage % (automatic) → 6 optional weights and KG wastage → 7 save.
  */
 export function ProductionForm({
-  looms, qualities, fixedLoomId, defaultLoomId, today, returnTo,
+  looms, qualities, fixedLoomId, defaultLoomId, today, shiftNow, returnTo,
 }: {
   looms: LoomStatusRow[];
   qualities: FabricQualityView[];
   fixedLoomId?: string;
   defaultLoomId?: string;
   today: string;
+  /** The shift running now and its production date (night after midnight = yesterday's night). */
+  shiftNow: { shift: string; date: string };
   /** Page to come back to if the beam is finished. */
   returnTo?: string;
 }) {
@@ -239,11 +241,11 @@ export function ProductionForm({
 
       <div className="grid grid-cols-2 gap-4">
         <Field label={L.takeoff.date} htmlFor="entry_date" error={err.entry_date}>
-          <input key={state.values?.entry_date ?? today} id="entry_date" name="entry_date" type="date" max={today}
-            defaultValue={state.values?.entry_date ?? today} className={inputClass} />
+          <input key={state.values?.entry_date ?? shiftNow.date} id="entry_date" name="entry_date" type="date" max={today}
+            defaultValue={state.values?.entry_date ?? shiftNow.date} className={inputClass} />
         </Field>
         <Field label={L.takeoff.shift} htmlFor="shift" optional>
-          <select key={state.values?.shift ?? ''} id="shift" name="shift" defaultValue={state.values?.shift ?? ''} className={inputClass}>
+          <select key={state.values?.shift ?? shiftNow.shift} id="shift" name="shift" defaultValue={state.values?.shift ?? shiftNow.shift} className={inputClass}>
             <option value="">{L.app.none}</option>
             {SHIFTS.map((s) => <option key={s} value={s}>{L.takeoff.shifts[s]}</option>)}
           </select>

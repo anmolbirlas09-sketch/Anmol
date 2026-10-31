@@ -51,7 +51,7 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 ## Units & formats
 23. kg are `numeric(14,3)`, meters `numeric(14,2)`; Postgres rounds on insert. Entry dates default to today in **Asia/Kolkata**; timestamps are `timestamptz`. DD-MM-YYYY is a display concern (UI phases).
 24. Lot, beam and machine numbers are unique **case-insensitively** (`a-101` = `A-101`).
-25. Shift is optional and limited to `day`, `night`, `A`, `B`, `C` — tell me your actual shift names.
+25. Shift is optional: `day` (8 am – 8 pm) or `night` (8 pm – 8 am), see decision 44.
 
 ## App (phase 2)
 27. **Server Components + Server Actions** for everything; the browser never talks to the database directly yet (realtime arrives in phase 4). Every query lives in `src/lib/data/` and takes a Supabase client, so the same functions run in the app and in tests.
@@ -72,7 +72,7 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 41. **Loading:** L-76 / L-75 staff see only their own factory's free looms. The owner sees all, with the beam's own factory listed first. Loading onto a loom in another factory moves the beam there (decision 10).
 42. **Corrections:** a supervisor can *unload* a beam put on the wrong loom (only before any take-off), and *delete* a take-off (refused if that fabric was already dispatched, see decision 4). Data-entry users can do neither.
 43. **Loom tiles in phase 3 are refreshed on navigation**; live updates without refresh come with the phase 4 dashboard.
-44. **Shift names** are still placeholders (Day, Night, A, B, C) until you confirm yours.
+44. **Shifts** are Day (8 am – 8 pm) and Night (8 pm – 8 am) (migration 0011). The production form pre-selects the shift running now in Asia/Kolkata. A night-shift entry made after midnight is dated by the evening the shift started (an entry at 2 am on the 2nd belongs to the night shift of the 1st); staff can change the date or shift.
 
 ## Dashboard & realtime (phase 4)
 45. **Home is the dashboard.** Owners start on "All"; factory staff start on their own factory and can switch.

@@ -3,7 +3,7 @@ import { Card, Notice, PageHeader, SectionTitle } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { listLoomStatus, listTakeoffs } from '@/lib/data/looms';
 import { listFabricQualities } from '@/lib/data/masters';
-import { todayIST } from '@/lib/format';
+import { currentShift, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import { ProductionForm } from '../looms/ProductionForm';
@@ -33,7 +33,7 @@ export default async function TakeoffPage({ searchParams }: PageProps<'/takeoff'
           qualities={qualities}
           looms={looms.filter((l) => l.status === 'running')}
           defaultLoomId={typeof loom === 'string' ? loom : undefined}
-          today={todayIST()}
+          today={todayIST()} shiftNow={currentShift()}
         />
       </Card>
       <SectionTitle>{L.takeoff.recent}</SectionTitle>

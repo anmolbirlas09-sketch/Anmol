@@ -63,6 +63,7 @@ supabase/
     …0008_dashboard_views.sql v_production_daily (per day, loom, quality)
     …0009_reports.sql         report functions (yarn by quality/lot, grey summary, loom production), v_dispatches
     …0010_metre_first_production.sql  metre-first production: wasted/net metres, rolls, optional weights, KG wastage, record_production()
+    …0011_day_night_shifts.sql        shifts: day (8 am – 8 pm) and night (8 pm – 8 am)
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -202,7 +203,7 @@ Database tests cover: the full §8 acceptance test (run as an authenticated owne
 
 ## Deploy
 
-1. `supabase db push` (applies all migrations, 0001–0010).
+1. `supabase db push` (applies all migrations, 0001–0011).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
 3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
 4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.
