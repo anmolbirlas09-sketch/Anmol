@@ -15,7 +15,8 @@ export const metadata: Metadata = { title: L.dashboard.title };
 
 export default async function DashboardPage({ searchParams }: PageProps<'/'>) {
   const user = await requireUser();
-  const { factory: f } = await searchParams;
+  const { factory: f, specs: specsParam } = await searchParams;
+  const showSpecs = specsParam === '1';
   const db = await createClient();
   const factories = await listFactories(db);
   // Owners start on "All"; factory staff on their own factory.
@@ -92,16 +93,35 @@ export default async function DashboardPage({ searchParams }: PageProps<'/'>) {
               {d.grey.length === 0 && (
                 <tr><td colSpan={3} className="px-4 py-3 text-muted">{L.dashboard.noGrey}</td></tr>
               )}
-              {d.grey.map((g) => (
+              {d.grey.flatMap((g) => [
                 <tr key={g.fabric_quality_id}>
-                  <th scope="row" className="px-4 py-2.5 text-left font-semibold">{g.fabric_quality_name}</th>
+                  <th scope="row" className="px-4 py-2.5 text-left font-semibold">
+                    {g.fabric_quality_name}
+                    <span className="ml-1 text-xs font-normal text-muted">({g.specs.length})</span>
+                  </th>
                   <td className="px-2 py-2.5 text-right">{fmtM(g.stock_m)}</td>
                   <td className="px-4 py-2.5 text-right">{fmtKg(g.stock_kg)}</td>
-                </tr>
-              ))}
+                </tr>,
+                ...(showSpecs
+                  ? g.specs.map((sp) => (
+                      <tr key={sp.fabric_specification_id} className="bg-sunken/60 text-xs" data-spec={sp.spec_code}>
+                        <th scope="row" className="py-2 pl-8 pr-4 text-left font-normal">↳ {sp.spec_code}</th>
+                        <td className="px-2 py-2 text-right">{fmtM(sp.stock_m)}</td>
+                        <td className="px-4 py-2 text-right">{fmtKg(sp.stock_kg)}</td>
+                      </tr>
+                    ))
+                  : []),
+              ])}
             </tbody>
           </table>
-          <div className="px-4 pb-3 pt-1 text-right">
+          <div className="flex items-center justify-between gap-3 px-4 pb-3 pt-1">
+            <Link
+              href={`/?${new URLSearchParams({ ...(factoryId ? { factory: factoryId } : { factory: 'all' }), ...(showSpecs ? {} : { specs: '1' }) })}`}
+              className="text-sm font-semibold text-brand"
+              data-testid="toggle-specs"
+            >
+              {showSpecs ? L.spec.collapse : L.spec.expand}
+            </Link>
             <Link href={factoryId ? `/grey?factory=${factoryId}` : '/grey'} className="text-sm font-semibold text-brand">{L.grey.title} ›</Link>
           </div>
         </Card>

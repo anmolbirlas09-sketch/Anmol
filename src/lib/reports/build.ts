@@ -65,6 +65,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
       const rows = await rpcAll(db, 'report_grey_summary', args, 'fabric_quality_name');
       return table(kind, p, [
         { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
         { key: 'factory_code', label: C.factory, kind: 'text' },
         { key: 'opening_m', label: C.openingM, kind: 'm', total: true },
         { key: 'opening_kg', label: C.openingKg, kind: 'kg', total: true },
@@ -81,16 +82,72 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
     case 'loom-production': {
       const rows = await rpcAll(db, 'report_loom_production', {
         ...args, p_period: p.period, p_loom_id: p.loomId ?? null, p_fabric_quality_id: p.fabricQualityId ?? null, p_beam_no: p.beamNo ?? null,
+        p_fabric_specification_id: p.fabricSpecificationId ?? null,
       }, 'period');
       return table(kind, p, [
         { key: 'period', label: C.period, kind: p.period === 'month' ? 'month' : 'date' },
         { key: 'factory_code', label: C.factory, kind: 'text' },
         { key: 'machine_no', label: C.loom, kind: 'text' },
         { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
         { key: 'takeoff_count', label: C.takeoffs, kind: 'int', total: true },
         ...metreColumns,
         ...kgColumns,
       ], rows.sort((a, b) => String(a.period).localeCompare(String(b.period)) || String(b.factory_code).localeCompare(String(a.factory_code)) || String(a.machine_no).localeCompare(String(b.machine_no))));
+    }
+    case 'specifications': {
+      const specRows = await rpcAll(db, 'report_specification_summary', {
+        p_from: p.from, p_to: p.to, p_factory_id: p.factoryId ?? null,
+        p_fabric_quality_id: p.fabricQualityId ?? null, p_fabric_specification_id: p.fabricSpecificationId ?? null,
+      }, 'fabric_quality_name');
+      const columns: Column[] = [
+        { key: 'level', label: C.level, kind: 'text' },
+        { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
+        { key: 'reed', label: C.reed, kind: 'ratio' },
+        { key: 'ends_per_inch', label: C.epi, kind: 'ratio' },
+        { key: 'weft_yarn_quality_name', label: C.weftYarn, kind: 'text' },
+        { key: 'warp_yarn_quality_name', label: C.warpYarn, kind: 'text' },
+        { key: 'takeoff_count', label: C.takeoffs, kind: 'int', total: true },
+        ...metreColumns,
+        { key: 'roll_count', label: C.rolls, kind: 'int', total: true },
+        { key: 'stock_m', label: C.stockM, kind: 'm', total: true },
+        { key: 'stock_kg', label: C.stockKg, kind: 'kg', total: true },
+        { key: 'warp_issued_kg', label: C.warpIssued, kind: 'kg', total: true },
+        { key: 'weft_issued_kg', label: C.weftIssued, kind: 'kg', total: true },
+        { key: 'prod_warp_kg', label: C.warpKg, kind: 'kg', total: true },
+        { key: 'prod_weft_kg', label: C.weftKg, kind: 'kg', total: true },
+        { key: 'estimated_kg', label: C.estKg, kind: 'kg', total: true },
+        { key: 'kgs', label: C.weighedKg, kind: 'kg', total: true },
+        { key: 'waste_kg', label: C.wasteKgActual, kind: 'kg', total: true },
+        { key: 'waste_kg_estimated', label: C.wasteKgEst, kind: 'kg', total: true },
+      ];
+      const sumKeys = columns.filter((c) => c.total === true).map((c) => c.key);
+      const out: Row[] = [];
+      const indented: boolean[] = [];
+      const parents: Row[] = [];
+      const byParent = new Map<string, Row[]>();
+      for (const r of specRows) byParent.set(String(r.fabric_quality_id), [...(byParent.get(String(r.fabric_quality_id)) ?? []), r]);
+      for (const list of byParent.values()) {
+        // Parent row = its specifications added up (only what was recorded; blank stays blank).
+        const parent: Row = { level: C.parentLevel, fabric_quality_name: list[0].fabric_quality_name, spec_code: L.spec.count(list.length) };
+        for (const k of sumKeys) {
+          const known = list.map((r) => r[k]).filter((x) => x !== null && x !== undefined);
+          parent[k] = known.length ? Math.round(known.reduce<number>((a, x) => a + Number(x), 0) * 1000) / 1000 : null;
+        }
+        parent.wastage_pct = weightedPct('wasted_meters', 'meters')([parent]);
+        parents.push(parent);
+        out.push(parent);
+        indented.push(false);
+        if (p.showSpecs !== false) {
+          for (const r of list) {
+            out.push({ ...r, level: C.specLevel, wastage_pct: weightedPct('wasted_meters', 'meters')([r]) });
+            indented.push(true);
+          }
+        }
+      }
+      // Totals from the parent rows only, so specifications are not counted twice.
+      return { ...table(kind, p, columns, out), totals: totalsFor(columns, parents), indented };
     }
     case 'production': {
       const entries = await fetchAll<Takeoff>((from, to) => {
@@ -98,12 +155,14 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         if (p.factoryId) q = q.eq('factory_id', p.factoryId);
         if (p.loomId) q = q.eq('loom_id', p.loomId);
         if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+        if (p.fabricSpecificationId) q = q.eq('fabric_specification_id', p.fabricSpecificationId);
         if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
         return q.order('entry_date').order('created_at').range(from, to);
       });
       const rows: Row[] = entries.map((t) => ({
         entry_date: t.entry_date, shift: t.shift ? (L.takeoff.shiftShort[t.shift] ?? t.shift) : null, machine_no: t.machine_no, beam_no: t.beam_no,
-        fabric_quality_name: t.fabric_quality_name, meters: t.meters, wasted_meters: t.wasted_meters, net_meters: t.net_meters,
+        fabric_quality_name: t.fabric_quality_name, spec_code: t.spec_code, reed: t.reed, ends_per_inch: t.ends_per_inch,
+        warp_yarn: t.warp_yarn_quality_name, weft_yarn: t.weft_yarn_quality_name, meters: t.meters, wasted_meters: t.wasted_meters, net_meters: t.net_meters,
         wastage_pct: t.wastage_pct, roll_count: t.roll_count, roll_length_m: t.roll_length_m, gsm: t.gsm, width_m: t.width_m,
         estimated_kg: t.estimated_kg, kgs: t.kgs, warp_kg: t.warp_kg, weft_kg: t.weft_kg, total_yarn_kg: t.total_yarn_kg,
         waste_kg: t.waste_kg, waste_kg_estimated: t.waste_kg_estimated, weight_wastage_pct: t.weight_wastage_pct, waste_pct_entered: t.waste_pct_entered,
@@ -114,6 +173,11 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         { key: 'machine_no', label: C.loom, kind: 'text' },
         { key: 'beam_no', label: C.beam, kind: 'text' },
         { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
+        { key: 'reed', label: C.reed, kind: 'ratio' },
+        { key: 'ends_per_inch', label: C.epi, kind: 'ratio' },
+        { key: 'weft_yarn', label: C.weftYarn, kind: 'text' },
+        { key: 'warp_yarn', label: C.warpYarn, kind: 'text' },
         ...metreColumns,
         { key: 'roll_count', label: C.rolls, kind: 'int', total: true },
         { key: 'roll_length_m', label: C.rollLength, kind: 'm' },
@@ -130,12 +194,13 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         if (p.factoryId) q = q.eq('factory_id', p.factoryId);
         if (p.loomId) q = q.eq('loom_id', p.loomId);
         if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+        if (p.fabricSpecificationId) q = q.eq('fabric_specification_id', p.fabricSpecificationId);
         if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
         return q.order('entry_date').order('roll_no').range(from, to);
       });
       const rows: Row[] = rolls.map((r) => ({
         roll_no: r.roll_no, entry_date: r.entry_date, machine_no: r.machine_no, beam_no: r.beam_no,
-        fabric_quality_name: r.fabric_quality_name, factory_code: r.factory_code, meters: r.meters,
+        fabric_quality_name: r.fabric_quality_name, spec_code: r.spec_code, factory_code: r.factory_code, meters: r.meters,
       }));
       return table(kind, p, [
         { key: 'roll_no', label: C.rollNo, kind: 'text' },
@@ -143,6 +208,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         { key: 'machine_no', label: C.loom, kind: 'text' },
         { key: 'beam_no', label: C.beam, kind: 'text' },
         { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
         { key: 'factory_code', label: C.factory, kind: 'text' },
         { key: 'meters', label: C.meters, kind: 'm', total: true },
       ], rows);
@@ -154,12 +220,13 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         if (p.factoryId) q = q.eq('factory_id', p.factoryId);
         if (p.loomId) q = q.eq('loom_id', p.loomId);
         if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+        if (p.fabricSpecificationId) q = q.eq('fabric_specification_id', p.fabricSpecificationId);
         if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
         return q.order('created_date').order('beam_no').range(from, to);
       });
       if (kind === 'beam-register') {
         const rows: Row[] = beams.map((b) => ({
-          beam_no: b.beam_no, created_date: b.created_date, factory_code: b.factory_code, fabric_quality_name: b.fabric_quality_name,
+          beam_no: b.beam_no, created_date: b.created_date, factory_code: b.factory_code, fabric_quality_name: b.fabric_quality_name, spec_code: b.spec_code,
           machine_no: b.machine_no, status: L.beam.statuses[b.status],
           warp_issued: b.warp_kg, weft_issued: b.weft_kg, yarn_issued: b.total_yarn_kg,
           meters: b.takeoff_count ? b.grey_meters : null, wasted_meters: b.takeoff_count ? b.wasted_meters : null,
@@ -173,6 +240,8 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
           { key: 'created_date', label: C.date, kind: 'date' },
           { key: 'factory_code', label: C.factory, kind: 'text' },
           { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+          { key: 'spec_code', label: C.spec, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
           { key: 'machine_no', label: C.loom, kind: 'text' },
           { key: 'status', label: C.status, kind: 'text' },
           { key: 'warp_issued', label: C.warpIssued, kind: 'kg', total: true },
@@ -186,7 +255,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         ], rows);
       }
       const rows: Row[] = beams.map((b) => ({
-        beam_no: b.beam_no, created_date: b.created_date, fabric_quality_name: b.fabric_quality_name,
+        beam_no: b.beam_no, created_date: b.created_date, fabric_quality_name: b.fabric_quality_name, spec_code: b.spec_code,
         planned_warp_kg: b.planned_warp_kg, warp_kg: b.warp_kg, warp_variance_pct: b.warp_variance_pct,
         planned_weft_kg: b.planned_weft_kg, weft_kg: b.weft_kg, weft_variance_pct: b.weft_variance_pct,
         flag: b.warp_variance_flag || b.weft_variance_flag,
@@ -195,6 +264,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         { key: 'beam_no', label: C.beam, kind: 'text' },
         { key: 'created_date', label: C.date, kind: 'date' },
         { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
+        { key: 'spec_code', label: C.spec, kind: 'text' },
         { key: 'planned_warp_kg', label: C.warpPlanned, kind: 'kg', total: true },
         { key: 'warp_kg', label: C.warpActual, kind: 'kg', total: true },
         { key: 'warp_variance_pct', label: C.warpVar, kind: 'pct' },

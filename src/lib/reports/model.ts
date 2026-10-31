@@ -1,10 +1,10 @@
 import { fmtDate, fmtKg, fmtM, fmtPct } from '../format';
 import { L } from '../labels';
 
-export const REPORT_KINDS = ['production', 'loom-production', 'beam-register', 'rolls', 'yarn-quality', 'yarn-lot', 'grey-summary', 'variance'] as const;
+export const REPORT_KINDS = ['specifications', 'production', 'loom-production', 'beam-register', 'rolls', 'yarn-quality', 'yarn-lot', 'grey-summary', 'variance'] as const;
 
 /** Reports that can be narrowed to a loom, fabric quality or beam. */
-export const FILTERABLE: readonly ReportKind[] = ['production', 'loom-production', 'beam-register', 'rolls', 'variance'];
+export const FILTERABLE: readonly ReportKind[] = ['specifications', 'production', 'loom-production', 'beam-register', 'rolls', 'variance'];
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export const isReportKind = (k: string): k is ReportKind => (REPORT_KINDS as readonly string[]).includes(k);
 
@@ -31,7 +31,11 @@ export interface ReportParams {
   loomNo?: string; // for titles
   fabricQualityId?: string;
   fabricQualityName?: string; // for titles
+  fabricSpecificationId?: string;
+  specCode?: string; // for titles
   beamNo?: string;
+  /** Specification report: list each specification under its parent (default) or parents only. */
+  showSpecs?: boolean;
 }
 
 export interface ReportTable {
@@ -44,6 +48,8 @@ export interface ReportTable {
   totals: Row | null;
   /** Rows to highlight (variance over the limit). */
   flagged?: boolean[];
+  /** Rows shown as sub-rows (specifications under their parent quality). */
+  indented?: boolean[];
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -101,7 +107,7 @@ export const weightedPct = (partKey: string, wholeKey: string) => (rows: Row[]):
 };
 
 export function subtitleFor(p: ReportParams): string {
-  const extra = [p.loomNo, p.fabricQualityName, p.beamNo && `${L.reports.beamNo} ${p.beamNo}`].filter(Boolean);
+  const extra = [p.loomNo, p.fabricQualityName, p.specCode, p.beamNo && `${L.reports.beamNo} ${p.beamNo}`].filter(Boolean);
   return [`${fmtDate(p.from)} to ${fmtDate(p.to)}`, p.factoryCode ?? L.app.allFactories, ...extra].join(' · ');
 }
 

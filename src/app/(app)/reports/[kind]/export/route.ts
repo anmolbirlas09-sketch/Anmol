@@ -1,5 +1,5 @@
 import { getCurrentUser } from '@/lib/auth';
-import { listFabricQualities, listFactories } from '@/lib/data/masters';
+import { listFabricQualities, listFactories, listSpecifications } from '@/lib/data/masters';
 import { listLooms } from '@/lib/data/settings';
 import { buildReport } from '@/lib/reports/build';
 import { reportToPdf, reportToXlsx } from '@/lib/reports/export';
@@ -15,8 +15,8 @@ export async function GET(request: Request, ctx: RouteContext<'/reports/[kind]/e
 
   const url = new URL(request.url);
   const db = await createClient();
-  const [factories, looms, qualities] = await Promise.all([listFactories(db), listLooms(db), listFabricQualities(db)]);
-  const p = reportParams(Object.fromEntries(url.searchParams), factories, user.factory_id, { looms, qualities });
+  const [factories, looms, qualities, specs] = await Promise.all([listFactories(db), listLooms(db), listFabricQualities(db), listSpecifications(db)]);
+  const p = reportParams(Object.fromEntries(url.searchParams), factories, user.factory_id, { looms, qualities, specs });
   const report = await buildReport(db, kind, p);
 
   const pdf = url.searchParams.get('format') === 'pdf';

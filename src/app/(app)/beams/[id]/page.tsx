@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { SpecDetails } from '@/components/SpecPicker';
 import { Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, cx } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { getBeamSummary, getConsumptionLines } from '@/lib/data/beams';
@@ -46,7 +47,7 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-2">
             <BeamStatusBadge status={beam.status} />
-            {beam.fabric_quality_name} · {beam.factory_code}
+            {beam.fabric_quality_name} · <span data-testid="beam-spec">{beam.spec_code}</span> · {beam.factory_code}
             {beam.machine_no && ` · ${L.beam.loom} ${beam.machine_no}`}
           </span>
         }
@@ -62,6 +63,8 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
           <Notice tone="bad">{error}</Notice>
         </div>
       )}
+
+      <div className="mb-4"><SpecDetails spec={beam} /></div>
 
       <PlannedVsActual beam={beam} />
 
@@ -131,8 +134,9 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
           lots={lots}
           today={todayIST()}
           expected={{
-            warp: { id: fq?.warp_yarn_quality_id ?? null, name: fq?.warp_yarn_quality_name ?? null },
-            weft: { id: fq?.weft_yarn_quality_id ?? null, name: fq?.weft_yarn_quality_name ?? null },
+            // the specification's yarns (falling back to the parent quality's defaults)
+            warp: { id: beam.spec_warp_yarn_quality_id ?? fq?.warp_yarn_quality_id ?? null, name: beam.warp_yarn_quality_name ?? null },
+            weft: { id: beam.spec_weft_yarn_quality_id ?? fq?.weft_yarn_quality_id ?? null, name: beam.weft_yarn_quality_name ?? null },
           }}
         />
       </Card>

@@ -43,10 +43,10 @@ export function MasterForm({ kind, id, initial, yarnQualities = [] }: { kind: Ma
       {kind === 'fabric-qualities' && (
         <>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={L.masters.warpYarn} htmlFor="warp_yarn_quality_id" optional>
+            <Field label={L.masters.warpYarn} htmlFor="warp_yarn_quality_id" optional hint={L.spec.defaultYarnsHint}>
               <Combobox id="warp_yarn_quality_id" name="warp_yarn_quality_id" clearable defaultValue={state.values?.warp_yarn_quality_id} options={yarnOptions} />
             </Field>
-            <Field label={L.masters.weftYarn} htmlFor="weft_yarn_quality_id" optional>
+            <Field label={L.masters.weftYarn} htmlFor="weft_yarn_quality_id" optional hint={L.spec.defaultYarnsHint}>
               <Combobox id="weft_yarn_quality_id" name="weft_yarn_quality_id" clearable defaultValue={state.values?.weft_yarn_quality_id} options={yarnOptions} />
             </Field>
           </div>

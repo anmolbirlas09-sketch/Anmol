@@ -26,7 +26,7 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | `/beams` | Beams with status filter, search, warp/weft kg (red when over the variance limit) |
 | `/beams/new` | New beam with a live planned warp/weft preview |
 | `/beams/[id]` | Planned vs actual, load on loom / finish, yield (grey m & kg, wastage kg & %, m/kg), take-offs, add warp/weft lines lot by lot (live available kg) |
-| `/masters/...` | Yarn qualities, fabric qualities, suppliers (owner + supervisor add/edit) |
+| `/masters/...` | Yarn qualities, suppliers, and **fabric qualities with their specifications**: each parent quality lists its specifications (Specification ID, Reed, Total Ends per Inch, warp and weft yarn); add, edit, deactivate; search by quality name or Specification ID |
 | `/looms` | All 68 looms as tiles by factory (green = running, with beam and meters so far); factory toggle |
 | `/looms/load` | Load on loom: pick a prepared beam and a free loom (beam's factory listed first) |
 | `/looms/[id]` | One loom: current beam, take-off form, "Mark beam finished", "Unload" for supervisors (only before any fabric), loom history; load form when idle |
@@ -64,6 +64,7 @@ supabase/
     …0009_reports.sql         report functions (yarn by quality/lot, grey summary, loom production), v_dispatches
     …0010_metre_first_production.sql  metre-first production: wasted/net metres, rolls, optional weights, KG wastage, record_production()
     …0011_day_night_shifts.sql        shifts: day (8 am – 8 pm) and night (8 pm – 8 am)
+    …0012_fabric_specifications.sql   parent qualities with multiple specifications; stock per specification
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -111,6 +112,7 @@ DECISIONS.md                  assumptions and design choices
 |---|---|
 | Yarn stock by quality | Opening, inward, warp, weft, adjustments, closing kg per yarn quality |
 | Yarn stock ledger by lot | The same per lot |
+| Specification and quality summary | Per specification: production, wastage, rolls, finished stock, yarn issued and recorded, KG wastage — with a totals row per parent quality (or parents only) |
 | Production register | Every production entry: total / wasted / net metres, wastage %, rolls, GSM, width, estimated and weighed kg, warp / weft / total yarn kg, waste kg (actual or estimated) |
 | Loom-wise production | The same totals per loom and fabric quality, daily or monthly, per factory |
 | Beam register | Beam → loom → yarn issued → production metres and wastage → weights where recorded |
@@ -203,7 +205,7 @@ Database tests cover: the full §8 acceptance test (run as an authenticated owne
 
 ## Deploy
 
-1. `supabase db push` (applies all migrations, 0001–0011).
+1. `supabase db push` (applies all migrations, 0001–0012).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
 3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
 4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

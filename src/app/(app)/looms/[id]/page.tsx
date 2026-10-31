@@ -2,10 +2,11 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
+import { SpecDetails } from '@/components/SpecPicker';
 import { Badge, Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, type Tone } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { getLoomStatus, listPreparedBeams, listTakeoffs } from '@/lib/data/looms';
-import { listFabricQualities } from '@/lib/data/masters';
+import { listFabricQualities, listSpecifications } from '@/lib/data/masters';
 import { currentShift, fmtDateTime, fmtKg, fmtM, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
@@ -27,10 +28,11 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
   const loom = await getLoomStatus(db, id).catch(() => null);
   if (!loom) notFound();
   const mayWork = !user.factory_id || user.factory_id === loom.factory_id;
-  const [takeoffs, prepared, qualities] = await Promise.all([
+  const [takeoffs, prepared, qualities, specs] = await Promise.all([
     listTakeoffs(db, { loomId: id, limit: 20 }),
     loom.status === 'idle' && mayWork ? listPreparedBeams(db) : Promise.resolve([]),
     loom.beam_id && mayWork ? listFabricQualities(db, { activeOnly: true }) : Promise.resolve([]),
+    loom.beam_id && mayWork ? listSpecifications(db, { qualityId: loom.fabric_quality_id ?? undefined }) : Promise.resolve([]),
   ]);
   const here = `/looms/${id}`;
   const beamTakeoffs = takeoffs.filter((t) => t.beam_id === loom.beam_id).length;
@@ -43,6 +45,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
         subtitle={
           <span className="inline-flex items-center gap-2">
             <Badge tone={tone[loom.status]}>{L.loom.statuses[loom.status]}</Badge> {loom.factory_code}
+            {loom.assigned_spec_code && <span>· {L.spec.loomAssigned}: <b>{loom.assigned_spec_code}</b></span>}
           </span>
         }
       />
@@ -63,10 +66,11 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted">{L.loom.currentBeam}</div>
                 <Link href={`/beams/${loom.beam_id}`} className="text-xl font-bold text-brand">{loom.beam_no}</Link>
-                <div className="text-sm">{loom.fabric_quality_name}</div>
+                <div className="text-sm">{loom.fabric_quality_name} · <b data-testid="loom-spec">{loom.spec_code}</b></div>
                 <div className="text-xs text-muted">{L.loom.loadedAt} {fmtDateTime(loom.loaded_at)}</div>
               </div>
             </div>
+            <div className="mt-3"><SpecDetails spec={{ spec_code: loom.spec_code ?? '', reed: loom.reed, ends_per_inch: loom.ends_per_inch, warp_yarn_quality_name: loom.warp_yarn_quality_name, weft_yarn_quality_name: loom.weft_yarn_quality_name }} /></div>
             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
               <Stat label={L.loom.producedSoFar} value={fmtM(loom.meters_on_beam)} unit="m" />
               <Stat label={L.production.net} value={fmtM(loom.net_on_beam)} unit="m" sub={`${L.production.wasted} ${fmtM(loom.wasted_on_beam)} m`} />
@@ -79,7 +83,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
             <>
               <SectionTitle>{L.takeoff.title}</SectionTitle>
               <Card>
-                <ProductionForm looms={[loom]} qualities={qualities} fixedLoomId={loom.loom_id} today={todayIST()} shiftNow={currentShift()} returnTo={here} />
+                <ProductionForm looms={[loom]} qualities={qualities} specs={specs} fixedLoomId={loom.loom_id} today={todayIST()} shiftNow={currentShift()} returnTo={here} />
               </Card>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <form action={finishBeamAction}>

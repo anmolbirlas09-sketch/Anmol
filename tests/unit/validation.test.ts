@@ -34,10 +34,10 @@ describe('yarn lot form', () => {
 
 describe('beam and consumption forms', () => {
   it('meters allow 2 decimals', () => {
-    const ok = parseForm(beamSchema, fd({ beam_no: 'b-001', fabric_quality_id: UUID, factory_id: UUID, warp_length_m: '3000.25', created_date: '2026-10-29' }));
+    const ok = parseForm(beamSchema, fd({ beam_no: 'b-001', fabric_quality_id: UUID, fabric_specification_id: UUID, factory_id: UUID, warp_length_m: '3000.25', created_date: '2026-10-29' }));
     expect(ok.data?.beam_no).toBe('B-001');
     expect(ok.data?.warp_length_m).toBe(3000.25);
-    const bad = parseForm(beamSchema, fd({ beam_no: 'b', fabric_quality_id: UUID, factory_id: UUID, warp_length_m: '1.234', created_date: '2026-10-29' }));
+    const bad = parseForm(beamSchema, fd({ beam_no: 'b', fabric_quality_id: UUID, fabric_specification_id: UUID, factory_id: UUID, warp_length_m: '1.234', created_date: '2026-10-29' }));
     expect(bad.error?.fieldErrors?.warp_length_m).toBe('Up to 2 decimals');
   });
 

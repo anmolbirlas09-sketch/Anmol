@@ -31,6 +31,7 @@ export const IMPORT_COLUMNS: Record<ImportKind, ColumnSpec[]> = {
   ],
   grey: [
     { key: 'fabric_quality', header: 'Fabric Quality', required: true, note: 'Exactly as in the Lists sheet', width: 26 },
+    { key: 'spec_code', header: 'Specification ID', required: false, note: 'Needed when the quality has more than one specification (see Lists)', width: 20 },
     { key: 'factory', header: 'Factory', required: true, note: 'L-76 or L-75', width: 10 },
     { key: 'meters', header: 'Meters', required: true, note: 'Up to 2 decimals', width: 12 },
     { key: 'kgs', header: 'Kgs', required: true, note: 'Up to 3 decimals', width: 12 },
@@ -46,6 +47,8 @@ export interface ImportMasters {
   fabricQualities: { id: string; name: string }[];
   factories: { id: string; code: string }[];
   suppliers: { id: string; name: string }[];
+  /** Active fabric specifications (grey stock is held per specification). */
+  specifications?: { id: string; spec_code: string; fabric_quality_id: string }[];
   /** Lot numbers already in the database (any case). */
   existingLotNos: string[];
   /** If set, rows for other factories are refused (factory-scoped users). */
@@ -73,6 +76,8 @@ export interface GreyImportRow {
   row: number;
   fabric_quality_id: string;
   fabric_quality_name: string;
+  fabric_specification_id: string;
+  spec_code: string;
   factory_id: string;
   factory_code: string;
   meters: number;
@@ -92,7 +97,7 @@ export type ParseResult =
 
 // ---------------------------------------------------------------- templates
 
-export function templateWorkbook(kind: ImportKind, m: Pick<ImportMasters, 'yarnQualities' | 'fabricQualities' | 'factories' | 'suppliers'>): ExcelJS.Workbook {
+export function templateWorkbook(kind: ImportKind, m: Pick<ImportMasters, 'yarnQualities' | 'fabricQualities' | 'factories' | 'suppliers' | 'specifications'>): ExcelJS.Workbook {
   const wb = new ExcelJS.Workbook();
   const cols = IMPORT_COLUMNS[kind];
   const ws = wb.addWorksheet(SHEET_NAME[kind], { views: [{ state: 'frozen', ySplit: 1 }] });
@@ -109,12 +114,17 @@ export function templateWorkbook(kind: ImportKind, m: Pick<ImportMasters, 'yarnQ
   lists.columns = [
     { header: kind === 'yarn' ? 'Yarn Quality' : 'Fabric Quality', key: 'q', width: 30 },
     { header: 'Factory', key: 'f', width: 10 },
-    ...(kind === 'yarn' ? [{ header: 'Supplier', key: 's', width: 30 }] : []),
+    ...(kind === 'yarn' ? [{ header: 'Supplier', key: 's', width: 30 }] : [{ header: 'Specification ID', key: 'sp', width: 22 }, { header: 'of Fabric Quality', key: 'spq', width: 30 }]),
   ];
   lists.getRow(1).font = { bold: true };
-  const n = Math.max(qualities.length, m.factories.length, kind === 'yarn' ? m.suppliers.length : 0);
+  const specs = m.specifications ?? [];
+  const qName = new Map(m.fabricQualities.map((q) => [q.id, q.name]));
+  const n = Math.max(qualities.length, m.factories.length, kind === 'yarn' ? m.suppliers.length : specs.length);
   for (let i = 0; i < n; i++) {
-    lists.addRow([qualities[i] ?? null, m.factories[i]?.code ?? null, ...(kind === 'yarn' ? [m.suppliers[i]?.name ?? null] : [])]);
+    lists.addRow([
+      qualities[i] ?? null, m.factories[i]?.code ?? null,
+      ...(kind === 'yarn' ? [m.suppliers[i]?.name ?? null] : [specs[i]?.spec_code ?? null, specs[i] ? qName.get(specs[i].fabric_quality_id) ?? null : null]),
+    ]);
   }
   const colLetter = (key: string) => String.fromCharCode(65 + cols.findIndex((c) => c.key === key));
   const listRule = (col: string, n: number) => ({ type: 'list' as const, allowBlank: true, formulae: [`Lists!$${col}$2:$${col}$${Math.max(2, n + 1)}`] });
@@ -122,6 +132,7 @@ export function templateWorkbook(kind: ImportKind, m: Pick<ImportMasters, 'yarnQ
   dv.add(`${colLetter(kind === 'yarn' ? 'yarn_quality' : 'fabric_quality')}2:${colLetter(kind === 'yarn' ? 'yarn_quality' : 'fabric_quality')}2000`, listRule('A', qualities.length));
   dv.add(`${colLetter('factory')}2:${colLetter('factory')}2000`, listRule('B', m.factories.length));
   if (kind === 'yarn') dv.add(`${colLetter('supplier')}2:${colLetter('supplier')}2000`, listRule('C', m.suppliers.length));
+  else dv.add(`${colLetter('spec_code')}2:${colLetter('spec_code')}2000`, listRule('C', specs.length));
   ws.getColumn(colLetter('date')).numFmt = 'dd-mm-yyyy';
 
   const help = wb.addWorksheet('Instructions');
@@ -291,14 +302,30 @@ export function parseWorkbook(wb: ExcelJS.Workbook, kind: ImportKind, m: ImportM
       else if (kgs === 'invalid' || kgs < 0) err(`Kgs "${text(get('kgs'))}" must be a number`);
       if (meters === 0 && kgs === 0) err('Meters and Kgs cannot both be 0');
 
-      if (q && factory) {
-        const k = `${q.id}:${factory.id}`;
-        if (seenGrey.has(k)) err(`${q.name} at ${factory.code} is repeated (also row ${seenGrey.get(k)})`);
+      // Stock is held per specification: an explicit Specification ID, or the quality's only one.
+      let spec: { id: string; spec_code: string } | undefined;
+      if (q) {
+        const own = (m.specifications ?? []).filter((s) => s.fabric_quality_id === q.id);
+        const codeText = text(get('spec_code'));
+        if (codeText) {
+          spec = own.find((s) => s.spec_code.toLowerCase() === codeText.toLowerCase());
+          if (!spec) err(`Specification "${codeText}" is not one of ${q.name}'s`);
+        } else if (own.length === 1) spec = own[0];
+        else if (own.length === 0) err(`${q.name} has no active specification`);
+        else err(`${q.name} has ${own.length} specifications: give the Specification ID`);
+      }
+
+      if (spec && factory) {
+        const k = `${spec.id}:${factory.id}`;
+        if (seenGrey.has(k)) err(`${q!.name} · ${spec.spec_code} at ${factory.code} is repeated (also row ${seenGrey.get(k)})`);
         else seenGrey.set(k, r);
       }
 
-      if (errors.length === before && q && factory && typeof meters === 'number' && typeof kgs === 'number') {
-        greyRows.push({ row: r, fabric_quality_id: q.id, fabric_quality_name: q.name, factory_id: factory.id, factory_code: factory.code, meters, kgs, entry_date: date, notes });
+      if (errors.length === before && q && spec && factory && typeof meters === 'number' && typeof kgs === 'number') {
+        greyRows.push({
+          row: r, fabric_quality_id: q.id, fabric_quality_name: q.name, fabric_specification_id: spec.id, spec_code: spec.spec_code,
+          factory_id: factory.id, factory_code: factory.code, meters, kgs, entry_date: date, notes,
+        });
       }
     }
   }

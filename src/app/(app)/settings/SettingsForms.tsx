@@ -4,7 +4,7 @@ import { useActionState } from 'react';
 import { SubmitButton, fieldProps, formKey } from '@/components/form';
 import { Field, Notice, cx, inputClass } from '@/components/ui';
 import { L } from '@/lib/labels';
-import type { AppUser, Factory, LoomRow } from '@/lib/types';
+import type { AppUser, Factory, FabricSpecification, LoomRow } from '@/lib/types';
 import type { FormState } from '@/lib/validation';
 import { saveFactoryAction, saveLoomAction, saveSettingsAction, saveUserAction } from './actions';
 
@@ -59,7 +59,7 @@ export function UserForm({ user, factories, isMe }: { user: AppUser; factories: 
   );
 }
 
-export function LoomForm({ loom, factories }: { loom: LoomRow | null; factories: Factory[] }) {
+export function LoomForm({ loom, factories, specs = [] }: { loom: LoomRow | null; factories: Factory[]; specs?: FabricSpecification[] }) {
   const save = saveLoomAction.bind(null, loom?.id ?? null);
   const [state, action] = useActionState(save, {} as FormState);
   const running = loom?.status === 'running';
@@ -103,6 +103,18 @@ export function LoomForm({ loom, factories }: { loom: LoomRow | null; factories:
       <SubmitButton variant={loom ? 'secondary' : 'primary'} className="col-span-1 min-h-11 px-2 text-sm">
         {loom ? L.settings.save : L.app.add}
       </SubmitButton>
+      {loom && (
+        <label className="col-span-6 text-xs font-semibold">
+          {L.spec.loomAssigned}
+          <select name="fabric_specification_id" defaultValue={v?.fabric_specification_id ?? loom.fabric_specification_id ?? ''} disabled={running} className={cx(small, 'mt-1 font-normal')}>
+            <option value="">{L.spec.loomAny}</option>
+            {specs.filter((s) => s.active || s.id === loom.fabric_specification_id).map((s) => (
+              <option key={s.id} value={s.id}>{s.fabric_quality_name} · {s.spec_code}</option>
+            ))}
+          </select>
+          {running && <input type="hidden" name="fabric_specification_id" value={loom.fabric_specification_id ?? ''} />}
+        </label>
+      )}
       <div className="col-span-6 empty:hidden"><Status state={state} /></div>
     </form>
   );

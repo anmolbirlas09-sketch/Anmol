@@ -48,7 +48,7 @@ describe('production figures (same formulas as the database)', () => {
 
 describe('production form validation', () => {
   const UUID = '0b0c3a3e-5f7d-4b1e-9a7c-2f1d3c4b5a69';
-  const base = { loom_id: UUID, fabric_quality_id: UUID, meters: '680', wasted_meters: '33', roll_length_m: '100', entry_date: '2026-10-31' };
+  const base = { loom_id: UUID, fabric_quality_id: UUID, fabric_specification_id: UUID, meters: '680', wasted_meters: '33', roll_length_m: '100', entry_date: '2026-10-31' };
   const fd = (o: Record<string, string>) => {
     const f = new FormData();
     for (const [k, v] of Object.entries(o)) f.set(k, v);
@@ -61,7 +61,7 @@ describe('production form validation', () => {
     expect(ok.data).toMatchObject({ meters: 680, wasted_meters: 33, roll_length_m: 100 });
     expect([ok.data!.gsm, ok.data!.width_m, ok.data!.warp_kg, ok.data!.weighed_kg, ok.data!.waste_kg]).toEqual([undefined, undefined, undefined, undefined, undefined]);
 
-    const missing = parseForm(productionSchema, fd({ loom_id: UUID, fabric_quality_id: UUID, entry_date: '2026-10-31' })).error!;
+    const missing = parseForm(productionSchema, fd({ loom_id: UUID, fabric_quality_id: UUID, fabric_specification_id: UUID, entry_date: '2026-10-31' })).error!;
     expect(Object.keys(missing.fieldErrors!).sort()).toEqual(['meters', 'roll_length_m', 'wasted_meters']);
   });
 

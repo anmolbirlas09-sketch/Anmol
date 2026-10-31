@@ -59,7 +59,7 @@ export default async function BeamsPage({ searchParams }: PageProps<'/beams'>) {
                       <span className="font-bold">{b.beam_no}</span>
                       <BeamStatusBadge status={b.status} />
                     </div>
-                    <div className="truncate text-sm">{b.fabric_quality_name}</div>
+                    <div className="truncate text-sm">{b.fabric_quality_name} · {b.spec_code}</div>
                     <div className="mt-0.5 text-xs text-muted">
                       {fmtDate(b.created_date)} · {b.factory_code}
                       {b.machine_no ? ` · ${b.machine_no}` : ''}

@@ -1,31 +1,33 @@
 'use client';
 
 import { useActionState, useState } from 'react';
-import { Combobox } from '@/components/Combobox';
+import { SpecPicker } from '@/components/SpecPicker';
 import { SubmitButton, fieldProps, formKey } from '@/components/form';
 import { Field, Notice, inputClass } from '@/components/ui';
 import { fmtKg, fmtM } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { expectedFabricLength, plannedWarpKg, plannedWeftKg } from '@/lib/planning';
-import type { Factory, FabricQualityView } from '@/lib/types';
+import type { Factory, FabricQualityView, FabricSpecification } from '@/lib/types';
 import type { FormState } from '@/lib/validation';
 import { createBeamAction } from '../actions';
 
 export function BeamForm({
-  qualities, factories, defaultFactoryId, today,
+  qualities, specs, factories, defaultFactoryId, today,
 }: {
-  qualities: FabricQualityView[]; factories: Factory[]; defaultFactoryId?: string; today: string;
+  qualities: FabricQualityView[]; specs: FabricSpecification[]; factories: Factory[]; defaultFactoryId?: string; today: string;
 }) {
   const [state, action] = useActionState(createBeamAction, {} as FormState);
   const err = state.fieldErrors ?? {};
   const [qualityId, setQualityId] = useState(state.values?.fabric_quality_id ?? '');
+  const [specId, setSpecId] = useState(state.values?.fabric_specification_id ?? '');
+  const spec = specs.find((s) => s.id === specId);
   const [length, setLength] = useState(state.values?.warp_length_m ?? '');
   const fq = qualities.find((q) => q.id === qualityId);
   const len = Number(length.replace(/,/g, ''));
   const fabricLen = fq && len > 0 ? expectedFabricLength(len, fq.warp_crimp_pct) : null;
-  const warp = fq ? plannedWarpKg({ totalEnds: fq.total_ends, warpLengthM: len, denier: fq.warp_denier, crimpPct: fq.warp_crimp_pct }) : null;
+  const warp = fq ? plannedWarpKg({ totalEnds: fq.total_ends, warpLengthM: len, denier: spec?.warp_denier ?? fq.warp_denier, crimpPct: fq.warp_crimp_pct }) : null;
   const weft = fq && fabricLen
-    ? plannedWeftKg({ picksPerInch: fq.picks_per_inch, reedWidthM: fq.reed_width_m, fabricLengthM: fabricLen, denier: fq.weft_denier, wastagePct: fq.weft_wastage_pct })
+    ? plannedWeftKg({ picksPerInch: fq.picks_per_inch, reedWidthM: fq.reed_width_m, fabricLengthM: fabricLen, denier: spec?.weft_denier ?? fq.weft_denier, wastagePct: fq.weft_wastage_pct })
     : null;
 
   return (
@@ -40,25 +42,15 @@ export function BeamForm({
         </Field>
       </div>
 
-      <Field
-        label={L.beam.fabricQuality}
-        htmlFor="fabric_quality_id"
-        error={err.fabric_quality_id}
-        hint={fq ? `${L.beam.warp}: ${fq.warp_yarn_quality_name ?? L.app.none} · ${L.beam.weft}: ${fq.weft_yarn_quality_name ?? L.app.none}` : undefined}
-      >
-        <Combobox
-          id="fabric_quality_id"
-          name="fabric_quality_id"
-          value={qualityId}
-          onChange={setQualityId}
-          invalid={Boolean(err.fabric_quality_id)}
-          options={qualities.map((q) => ({
-            value: q.id,
-            label: q.name,
-            keywords: `${q.warp_yarn_quality_name ?? ''} ${q.weft_yarn_quality_name ?? ''}`,
-          }))}
-        />
-      </Field>
+      <SpecPicker
+        qualities={qualities}
+        specs={specs}
+        qualityId={qualityId}
+        specId={specId}
+        onQuality={setQualityId}
+        onSpec={setSpecId}
+        errors={err}
+      />
 
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label={L.beam.warpLength} htmlFor="warp_length_m" error={err.warp_length_m}>

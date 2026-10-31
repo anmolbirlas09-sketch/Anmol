@@ -2,12 +2,13 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { Combobox } from '@/components/Combobox';
+import { SpecPicker } from '@/components/SpecPicker';
 import { SubmitButton } from '@/components/form';
 import { Badge, Field, Notice, cx, inputClass } from '@/components/ui';
 import { fmtKg, fmtM, fmtPct } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { describeRolls, productionFigures } from '@/lib/production';
-import type { FabricQualityView, LoomStatusRow } from '@/lib/types';
+import type { FabricQualityView, FabricSpecification, LoomStatusRow } from '@/lib/types';
 import { SHIFTS, type FormState } from '@/lib/validation';
 import { productionAction } from './actions';
 
@@ -54,10 +55,11 @@ function Figure({ label, value, tone, testId }: { label: string; value: string; 
  * 5 net / wastage % (automatic) → 6 optional weights and KG wastage → 7 save.
  */
 export function ProductionForm({
-  looms, qualities, fixedLoomId, defaultLoomId, today, shiftNow, returnTo,
+  looms, qualities, specs, fixedLoomId, defaultLoomId, today, shiftNow, returnTo,
 }: {
   looms: LoomStatusRow[];
   qualities: FabricQualityView[];
+  specs: FabricSpecification[];
   fixedLoomId?: string;
   defaultLoomId?: string;
   today: string;
@@ -70,6 +72,7 @@ export function ProductionForm({
   const [loomId, setLoomId] = useState(fixedLoomId ?? defaultLoomId ?? '');
   const loom = looms.find((l) => l.loom_id === loomId);
   const [qualityId, setQualityId] = useState(loom?.fabric_quality_id ?? '');
+  const [specId, setSpecId] = useState(loom?.fabric_specification_id ?? '');
   const [v, setV] = useState<Record<FieldName, string>>({
     meters: '', wasted_meters: '', roll_length_m: '', gsm: '', width_m: '',
     weighed_kg: '', warp_kg: '', weft_kg: '', waste_kg: '', waste_pct: '',
@@ -92,7 +95,9 @@ export function ProductionForm({
 
   const pickLoom = (id: string) => {
     setLoomId(id);
-    setQualityId(looms.find((l) => l.loom_id === id)?.fabric_quality_id ?? '');
+    const l = looms.find((x) => x.loom_id === id);
+    setQualityId(l?.fabric_quality_id ?? '');
+    setSpecId(l?.fabric_specification_id ?? '');
   };
 
   const fig = productionFigures({
@@ -101,7 +106,9 @@ export function ProductionForm({
     warpKg: num(v.warp_kg), weftKg: num(v.weft_kg), wasteKg: num(v.waste_kg), wastePct: num(v.waste_pct),
   });
   const quality = qualities.find((q) => q.id === qualityId);
-  const mismatch = loom && qualityId && loom.fabric_quality_id && qualityId !== loom.fabric_quality_id;
+  // The beam on the loom decides quality and specification; anything else is a mistake.
+  const mismatch = loom && ((qualityId && loom.fabric_quality_id && qualityId !== loom.fabric_quality_id)
+    || (specId && loom.fabric_specification_id && specId !== loom.fabric_specification_id));
   const wastedTooMuch = num(v.wasted_meters) !== null && num(v.meters) !== null && num(v.wasted_meters)! > num(v.meters)!;
   const err = state.fieldErrors ?? {};
   const showWeight = Boolean(v.gsm || v.width_m || v.weighed_kg || v.warp_kg || v.weft_kg);
@@ -155,19 +162,24 @@ export function ProductionForm({
             />
           </Field>
         )}
-        <Field label={P.fabricQuality} htmlFor="fabric_quality_id" error={err.fabric_quality_id}>
-          <select id="fabric_quality_id" name="fabric_quality_id" value={qualityId} onChange={(e) => setQualityId(e.target.value)} className={inputClass}>
-            <option value="">{L.app.select}</option>
-            {qualities.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
-          </select>
-        </Field>
+        <SpecPicker
+          qualities={qualities}
+          // the running specification stays selectable even if it was deactivated meanwhile
+          specs={specs}
+          specFilter={(s) => s.active || s.id === loom?.fabric_specification_id}
+          qualityId={qualityId}
+          specId={specId}
+          onQuality={setQualityId}
+          onSpec={setSpecId}
+          errors={err}
+        />
         {loom && (
           <div className="rounded-lg bg-sunken p-3 text-sm" data-testid="takeoff-beam">
-            <div className="font-semibold">{L.takeoff.beamOnLoom(loom.beam_no ?? '', loom.fabric_quality_name ?? '')}</div>
+            <div className="font-semibold">{L.takeoff.beamOnLoom(loom.beam_no ?? '', `${loom.fabric_quality_name} · ${loom.spec_code}`)}</div>
             <div className="tnum text-muted">{L.takeoff.soFar(fmtM(loom.meters_on_beam ?? 0), fmtM(loom.expected_fabric_length_m))}</div>
           </div>
         )}
-        {mismatch && <Notice tone="bad">{P.qualityMismatch(loom.beam_no ?? '', loom.fabric_quality_name ?? '')}</Notice>}
+        {mismatch && <Notice tone="bad">{L.spec.mismatch(loom.beam_no ?? '', `${loom.fabric_quality_name} · ${loom.spec_code}`)}</Notice>}
       </Step>
 
       <Step n={2} title={P.step2}>
@@ -257,7 +269,7 @@ export function ProductionForm({
         <span>{L.takeoff.finishBeam}</span>
       </label>
 
-      <SubmitButton className="w-full" disabled={!loom || wastedTooMuch || Boolean(mismatch)}>{P.save}</SubmitButton>
+      <SubmitButton className="w-full" disabled={!loom || !specId || wastedTooMuch || Boolean(mismatch)}>{P.save}</SubmitButton>
     </form>
   );
 }

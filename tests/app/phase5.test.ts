@@ -10,7 +10,7 @@ import { createDispatch, deleteDispatch, listDispatches } from '@/lib/data/dispa
 import { greyStock } from '@/lib/data/grey';
 import { importGreyRows, importMasters, importYarnRows } from '@/lib/data/imports';
 import { finishBeam, getLoomStatus, listLoomStatus, loadBeam, recordTakeoff } from '@/lib/data/looms';
-import { listFabricQualities, listFactories, listYarnQualities } from '@/lib/data/masters';
+import { listFabricQualities, listFactories, listSpecifications, listYarnQualities } from '@/lib/data/masters';
 import { listLooms, listUsers, saveLoom, setVarianceThreshold, updateUser } from '@/lib/data/settings';
 import { createLot, getLotBalance } from '@/lib/data/yarn';
 import { DataError, friendlyError } from '@/lib/errors';
@@ -56,6 +56,7 @@ beforeAll(async () => {
   for (const f of await listFactories(owner)) id[f.code] = f.id;
   for (const q of await listYarnQualities(owner)) id[q.name] = q.id;
   for (const q of await listFabricQualities(owner)) id[`fq:${q.name}`] = q.id;
+  for (const sp of await listSpecifications(owner)) id[`spec:${sp.fabric_quality_name}`] = sp.id;
   for (const l of await listLoomStatus(owner)) id[l.machine_no] = l.loom_id;
 });
 
@@ -119,7 +120,7 @@ describe('dispatch rules', () => {
   it('cannot dispatch more than is in stock at that factory', async () => {
     const e = await dbError(createDispatch(owner, { fabric_quality_id: id['fq:Mono White'], factory_id: id['L-76'], entry_date: today, meters: 701, kgs: 1 }));
     expect(e.db.code).toBe('WV003');
-    expect(friendlyError(e)).toBe('Not enough grey stock of Mono White at L-76: 700.00 m / 380.000 kg available');
+    expect(friendlyError(e)).toBe('Not enough grey stock of Mono White · MONOWHITE-S1 at L-76: 700.00 m / 380.000 kg available');
     // White/Black is at L-75 only
     expect((await dbError(createDispatch(owner, { fabric_quality_id: id['fq:White/Black'], factory_id: id['L-76'], entry_date: today, meters: 1, kgs: 1 }))).db.code).toBe('WV003');
   });
@@ -226,7 +227,7 @@ describe('opening stock import', () => {
 
   it('imports opening grey stock as dispatchable stock', async () => {
     const m = await importMasters(owner, null);
-    const parsed = parseWorkbook(await file('grey', [['Green Shade Net', 'L-75', 3000, 1500, '01-10-2026']]), 'grey', m, today);
+    const parsed = parseWorkbook(await file('grey', [['Green Shade Net', '', 'L-75', 3000, 1500, '01-10-2026']]), 'grey', m, today);
     expect(parsed.errors).toEqual([]);
     await importGreyRows(owner, parsed.rows as never);
     const rows = await greyStock(owner, { factoryId: id['L-75'] });
@@ -235,7 +236,7 @@ describe('opening stock import', () => {
   });
 
   it('data entry cannot import grey stock (adjustments need a supervisor)', async () => {
-    const e = await dbError(importGreyRows(entry76, [{ row: 2, fabric_quality_id: id['fq:Mono White'], fabric_quality_name: 'Mono White', factory_id: id['L-76'], factory_code: 'L-76', meters: 1, kgs: 1, entry_date: today }]));
+    const e = await dbError(importGreyRows(entry76, [{ row: 2, fabric_quality_id: id['fq:Mono White'], fabric_quality_name: 'Mono White', fabric_specification_id: id['spec:Mono White'], spec_code: 'MONOWHITE-S1', factory_id: id['L-76'], factory_code: 'L-76', meters: 1, kgs: 1, entry_date: today }]));
     expect(e.db.code).toBe('42501');
   });
 });

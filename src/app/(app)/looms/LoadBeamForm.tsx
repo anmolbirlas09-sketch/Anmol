@@ -33,12 +33,12 @@ export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId
     .map((l) => ({
       value: l.loom_id,
       label: l.machine_no,
-      detail: l.factory_code,
+      detail: l.assigned_spec_code ? `${l.factory_code} · ${l.assigned_spec_code}` : l.factory_code,
       group: homeFactory && l.factory_code !== homeFactory ? L.loom.otherFactory : L.loom.sameFactoryFirst(l.factory_code),
     }));
   const beamOptions: ComboOption[] = beams.map((b) => ({
     value: b.beam_id,
-    label: `${b.beam_no} · ${b.fabric_quality_name}`,
+    label: `${b.beam_no} · ${b.fabric_quality_name} · ${b.spec_code}`,
     detail: b.factory_code,
     keywords: fmtDate(b.created_date),
   }));

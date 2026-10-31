@@ -1,7 +1,7 @@
 import { unwrap } from '../errors';
 import type { BeamStatus, BeamSummary, ConsumptionLineView } from '../types';
 import type { BeamInput, ConsumptionInput } from '../validation';
-import type { Db } from './client';
+import type { Db, SpecOptional } from './client';
 
 export interface BeamFilters {
   status?: BeamStatus;
@@ -14,7 +14,7 @@ export async function listBeams(db: Db, f: BeamFilters = {}): Promise<BeamSummar
   if (f.status) q = q.eq('status', f.status);
   if (f.factoryId) q = q.eq('factory_id', f.factoryId);
   const term = f.q?.replace(/[,()*%\\]/g, ' ').trim();
-  if (term) q = q.or(`beam_no.ilike.*${term}*,fabric_quality_name.ilike.*${term}*`);
+  if (term) q = q.or(`beam_no.ilike.*${term}*,fabric_quality_name.ilike.*${term}*,spec_code.ilike.*${term}*`);
   return unwrap(await q.order('created_date', { ascending: false }).order('beam_no', { ascending: false }).limit(300));
 }
 
@@ -40,7 +40,7 @@ export async function countBeamsByStatus(db: Db): Promise<Record<BeamStatus, num
   return Object.fromEntries(statuses.map((s, i) => [s, counts[i]])) as Record<BeamStatus, number>;
 }
 
-export async function createBeam(db: Db, input: BeamInput): Promise<{ id: string; beam_no: string }> {
+export async function createBeam(db: Db, input: SpecOptional<BeamInput>): Promise<{ id: string; beam_no: string }> {
   return unwrap(await db.from('beams').insert(input).select('id, beam_no').single());
 }
 

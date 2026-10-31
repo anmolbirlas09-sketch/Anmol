@@ -71,8 +71,10 @@ test('data entry: yarn inward → beam → warp and weft consumption', async ({ 
   // --- Beam B-001 ---------------------------------------------------------
   await page.goto('/beams/new');
   await page.getByLabel('Beam no').fill('b-001');
-  await pick(page, 'Fabric quality', 'Mono White');
-  await expect(page.getByText('Warp: Mono 0.25 White · Weft: Mono 0.25 White')).toBeVisible();
+  await page.getByLabel('Fabric quality', { exact: true }).selectOption({ label: 'Mono White' });
+  // its only specification is picked automatically and shown
+  await expect(page.getByLabel('Specification', { exact: true }).locator('option:checked')).toContainText('MONOWHITE-S1');
+  await expect(page.getByTestId('spec-details')).toContainText('Mono 0.25 White');
   await page.getByLabel('Warp length (m)').fill('3000');
   await expect(page.getByText('259.560 kg')).toBeVisible(); // live planned preview
   await shot(page, '05-new-beam');

@@ -10,7 +10,7 @@ export function reportParams(
   sp: Record<string, string | string[] | undefined>,
   factories: Factory[],
   userFactoryId: string | null,
-  lists: { looms?: { id: string; machine_no: string }[]; qualities?: { id: string; name: string }[] } = {},
+  lists: { looms?: { id: string; machine_no: string }[]; qualities?: { id: string; name: string }[]; specs?: { id: string; spec_code: string }[] } = {},
 ): ReportParams {
   const one = (k: string) => (typeof sp[k] === 'string' ? (sp[k] as string) : undefined);
   const today = todayIST();
@@ -30,7 +30,10 @@ export function reportParams(
     loomNo: lists.looms?.find((l) => l.id === uuidParam(sp.loom))?.machine_no,
     fabricQualityId: uuidParam(sp.quality),
     fabricQualityName: lists.qualities?.find((q) => q.id === uuidParam(sp.quality))?.name,
+    fabricSpecificationId: uuidParam(sp.spec),
+    specCode: lists.specs?.find((s) => s.id === uuidParam(sp.spec))?.spec_code,
     beamNo: one('beam')?.trim().toUpperCase().slice(0, 50) || undefined,
+    showSpecs: one('specs') !== '0',
   };
 }
 
@@ -39,6 +42,8 @@ export function reportQuery(p: ReportParams): string {
   if (p.factoryId) q.set('factory', p.factoryId);
   if (p.loomId) q.set('loom', p.loomId);
   if (p.fabricQualityId) q.set('quality', p.fabricQualityId);
+  if (p.fabricSpecificationId) q.set('spec', p.fabricSpecificationId);
   if (p.beamNo) q.set('beam', p.beamNo);
+  if (p.showSpecs === false) q.set('specs', '0');
   return q.toString();
 }

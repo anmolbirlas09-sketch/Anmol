@@ -64,6 +64,7 @@ export type YarnLotInput = z.infer<typeof yarnLotSchema>;
 export const beamSchema = z.object({
   beam_no: requiredText(50).transform((s) => s.toUpperCase()),
   fabric_quality_id: uuid(),
+  fabric_specification_id: uuid(),
   factory_id: uuid(),
   warp_length_m: meters(),
   created_date: isoDate(),
@@ -122,6 +123,7 @@ export const productionSchema = z
   .object({
     loom_id: uuid(),
     fabric_quality_id: uuid(),
+    fabric_specification_id: uuid(),
     meters: meters(),
     wasted_meters: quantityOrZero(2),
     roll_length_m: meters(),
@@ -160,6 +162,7 @@ export type ProductionInputForm = z.infer<typeof productionSchema>;
 
 export const dispatchSchema = z.object({
   fabric_quality_id: uuid(),
+  fabric_specification_id: uuid(),
   factory_id: uuid(),
   entry_date: isoDate(),
   meters: meters(),
@@ -196,6 +199,7 @@ export type YarnAdjustmentInput = z.infer<typeof yarnAdjustmentSchema>;
 export const greyAdjustmentSchema = z
   .object({
     fabric_quality_id: uuid(),
+    fabric_specification_id: uuid(),
     factory_id: uuid(),
     meters: signedQuantity(2, true),
     kgs: signedQuantity(3, true),
@@ -218,6 +222,7 @@ export const userSchema = z.object({
 export const loomSchema = z.object({
   machine_no: requiredText(30).transform((s) => s.toUpperCase()),
   factory_id: uuid(),
+  fabric_specification_id: optionalUuid(),
   sort_order: optionalNumber({ int: true }),
   status: z.enum(['idle', 'maintenance', 'running']).optional(),
   active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
@@ -238,6 +243,35 @@ export const settingsSchema = z.object({
     .transform(Number)
     .refine((n) => n > 0 && n <= 100, L.errors.between(0, 100)),
 });
+
+/**
+ * A specification of a parent fabric quality. Reed and ends per inch are two
+ * separate, independent numbers — neither is ever calculated from the other.
+ */
+export const specificationSchema = z.object({
+  fabric_quality_id: uuid(),
+  reed: z
+    .string({ error: L.app.required })
+    .trim()
+    .min(1, L.app.required)
+    .refine((s) => /^\d*\.?\d+$/.test(s), L.errors.number)
+    .refine((s) => decimals(s) <= 2, L.errors.maxDecimals(2))
+    .transform(Number)
+    .refine((n) => n > 0, L.errors.positive),
+  ends_per_inch: z
+    .string({ error: L.app.required })
+    .trim()
+    .min(1, L.app.required)
+    .refine((s) => /^\d*\.?\d+$/.test(s), L.errors.number)
+    .refine((s) => decimals(s) <= 2, L.errors.maxDecimals(2))
+    .transform(Number)
+    .refine((n) => n > 0, L.errors.positive),
+  warp_yarn_quality_id: uuid(),
+  weft_yarn_quality_id: uuid(),
+  notes: optionalText(),
+  active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
+});
+export type SpecificationForm = z.infer<typeof specificationSchema>;
 
 export const yarnQualitySchema = z.object({
   name: requiredText(),

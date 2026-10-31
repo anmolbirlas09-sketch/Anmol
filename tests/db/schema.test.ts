@@ -107,6 +107,7 @@ describe('planning formulas (§4)', () => {
   it('shows planned as null (—) when quality data is missing, but still accepts actuals', async () => {
     const f = await db.id('factories', 'code', 'L-76');
     const fq = (await db.sql.query(`insert into fabric_qualities (name) values ('Bare Quality') returning id`)).rows[0].id;
+    await db.sql.query(`insert into fabric_specifications (fabric_quality_id, seq, spec_code) values ($1, 0, '')`, [fq]); // a spec with no data either
     const yq = await db.id('yarn_qualities', 'name', 'Mono 0.25 Black');
     const lot = (await db.sql.query(
       `insert into yarn_lots (lot_no, yarn_quality_id, factory_id, kgs_received) values ('P-2', $1, $2, 100) returning id`, [yq, f],

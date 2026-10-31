@@ -209,7 +209,7 @@ describe('grey stock is metre-first', () => {
     // metres are always enforced: 447 left
     const e = await pgError(() => db.sql.query(`insert into grey_fabric_dispatch (fabric_quality_id, factory_id, meters) values ($1, $2, 447.01)`, [fq, factory]));
     expect(e.code).toBe('WV003');
-    expect(e.message).toBe('Not enough grey stock of Green Shade Net at L-75: 447.00 m available');
+    expect(e.message).toBe('Not enough grey stock of Green Shade Net · GREENSHADENET-S1 at L-75: 447.00 m available');
   });
 });
 
@@ -217,8 +217,13 @@ describe('migration 0010 on an existing database', () => {
   it('keeps existing production and stock exactly as they were', async () => {
     const name = `weaving_mig_${process.pid}`;
     const all = schemaFiles();
-    const before = all.filter((f) => !f.includes('_metre_first_production') && !f.endsWith('realtime-shim.sql') && !f.endsWith('seed.sql'));
-    const m10 = all.find((f) => f.includes('_metre_first_production'))!;
+    // Migrations 0001–0009 = the database as it was before metre-first production.
+    const isLater = (f: string) => /\/2026(103|11)\d+_/.test(f) && f.includes('/migrations/');
+    const before = all.filter((f) => !isLater(f) && !f.endsWith('realtime-shim.sql') && !f.endsWith('seed.sql'));
+    const later = all.filter(isLater);
+    expect(later.map((f) => f.split('/').pop())).toEqual([
+      '20261031000010_metre_first_production.sql', '20261101000011_day_night_shifts.sql', '20261101000012_fabric_specifications.sql',
+    ]);
     await admin((c) => c.query(`drop database if exists ${name} with (force)`));
     await admin((c) => c.query(`create database ${name}`));
     const url = new URL(ADMIN_URL);
@@ -227,7 +232,8 @@ describe('migration 0010 on an existing database', () => {
     await c.connect();
     try {
       for (const f of before) await c.query(readSql(f));
-      await c.query(readSql(all.find((f) => f.endsWith('seed.sql'))!));
+      // the seed as it was then (its specification block only runs once 0012 exists)
+      await c.query(readSql(all.find((f) => f.endsWith('seed.sql'))!).split('-- One specification per sample quality')[0]);
       // Old-style data: a beam on a loom with two weighed take-offs and a dispatch.
       await c.query(`
         with f as (select id from factories where code = 'L-76'),
@@ -240,7 +246,7 @@ describe('migration 0010 on an existing database', () => {
                      select (select id from fabric_qualities where name = 'Mono White'), (select id from factories where code = 'L-76'), 500, 270`);
       const stockBefore = (await c.query(`select stock_m, stock_kg from v_grey_stock`)).rows;
 
-      await c.query(readSql(m10));
+      for (const f of later) await c.query(readSql(f));
 
       const rows = (await c.query(`select meters, kgs, wasted_meters, net_meters, wastage_pct, fabric_quality_id is not null as has_quality, roll_length_m from grey_fabric_production order by meters`)).rows;
       expect(rows.map((r) => [num(r.meters), num(r.kgs), num(r.wasted_meters), num(r.net_meters), num(r.wastage_pct), r.has_quality, r.roll_length_m])).toEqual([
@@ -248,6 +254,17 @@ describe('migration 0010 on an existing database', () => {
         [1200, 650, 0, 1200, 0, true, null],
       ]);
       expect((await c.query(`select stock_m, stock_kg from v_grey_stock`)).rows).toEqual(stockBefore);
+      // 0012: every existing quality got one specification S1; the beam and its production moved to it.
+      const specs = (await c.query(`select fq.name, s.spec_code, s.reed, s.ends_per_inch, s.warp_yarn_quality_id = fq.warp_yarn_quality_id as same_warp
+                                    from fabric_specifications s join fabric_qualities fq on fq.id = s.fabric_quality_id order by fq.name`)).rows;
+      expect(specs.map((r) => [r.name, r.spec_code, r.reed, r.ends_per_inch, r.same_warp])).toEqual([
+        ['Green Shade Net', 'GREENSHADENET-S1', null, null, true],
+        ['Mono White', 'MONOWHITE-S1', null, null, true],
+        ['White/Black', 'WHITEBLACK-S1', null, null, true],
+      ]);
+      const linked = (await c.query(`select count(*) filter (where p.fabric_specification_id = b.fabric_specification_id) as ok, count(*) as n
+                                     from grey_fabric_production p join beams b on b.id = p.beam_id`)).rows[0];
+      expect([num(linked.ok), num(linked.n)]).toEqual([2, 2]);
       // and kg is still enforced for this fully weighed stock: 1000 m / 540 kg left
       await expect(c.query(`insert into grey_fabric_dispatch (fabric_quality_id, factory_id, meters, kgs)
                             select (select id from fabric_qualities where name = 'Mono White'), (select id from factories where code = 'L-76'), 10, 541`)).rejects.toMatchObject({ code: 'WV003' });

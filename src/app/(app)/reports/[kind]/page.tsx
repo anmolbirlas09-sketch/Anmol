@@ -3,7 +3,7 @@ import { notFound } from 'next/navigation';
 import { LinkButton, PageHeader, cx } from '@/components/ui';
 import { requireUser } from '@/lib/auth';
 import { listLooms } from '@/lib/data/settings';
-import { listFabricQualities, listFactories } from '@/lib/data/masters';
+import { listFabricQualities, listFactories, listSpecifications } from '@/lib/data/masters';
 import { getVarianceThreshold } from '@/lib/data/settings';
 import { L } from '@/lib/labels';
 import { buildReport } from '@/lib/reports/build';
@@ -20,13 +20,14 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
   if (!isReportKind(kind)) notFound();
   const db = await createClient();
   const filterable = FILTERABLE.includes(kind);
-  const [factories, looms, qualities] = await Promise.all([
+  const [factories, looms, qualities, specs] = await Promise.all([
     listFactories(db),
     filterable ? listLooms(db) : Promise.resolve([]),
     filterable ? listFabricQualities(db) : Promise.resolve([]),
+    filterable ? listSpecifications(db) : Promise.resolve([]),
   ]);
   const visibleLooms = looms.filter((l) => !user.factory_id || l.factory_id === user.factory_id);
-  const p = reportParams(await searchParams, factories, user.factory_id, { looms, qualities });
+  const p = reportParams(await searchParams, factories, user.factory_id, { looms, qualities, specs });
   const [r, threshold] = await Promise.all([buildReport(db, kind, p), kind === 'variance' ? getVarianceThreshold(db) : null]);
   const q = reportQuery(p);
 
@@ -50,6 +51,8 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
           showPeriod={kind === 'loom-production'}
           looms={filterable ? visibleLooms : undefined}
           qualities={filterable ? qualities : undefined}
+          specs={filterable ? specs : undefined}
+          specsToggle={kind === 'specifications'}
         />
       </div>
       <p className="mb-2 text-sm text-muted">
@@ -75,12 +78,14 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
             </thead>
             <tbody>
               {r.rows.map((row, ri) => (
-                <tr key={ri} className={cx(r.flagged?.[ri] && 'text-bad')} data-flag={r.flagged?.[ri] || undefined}>
+                <tr key={ri} className={cx(r.flagged?.[ri] && 'text-bad', r.indented?.[ri] && 'text-sm', r.indented && !r.indented[ri] && 'font-semibold')}
+                  data-flag={r.flagged?.[ri] || undefined} data-level={r.indented ? (r.indented[ri] ? 'spec' : 'parent') : undefined}>
                   {r.columns.map((c, i) => (
                     <td key={c.key} className={cx(
                       'whitespace-nowrap border-b border-line px-3 py-2',
                       isNumeric(c.kind) && 'text-right',
                       i === 0 && 'sticky left-0 bg-surface font-semibold',
+                      i === 0 && r.indented?.[ri] && 'pl-6 font-normal',
                       r.flagged?.[ri] && c.kind === 'flag' && 'font-bold',
                     )}>{formatCell(c.kind, row[c.key])}</td>
                   ))}

@@ -57,7 +57,7 @@ test('8. dispatch reduces grey stock; over-dispatch is stopped', async ({ page }
   await page.getByRole('link', { name: 'Dispatch', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Grey dispatch');
   await page.getByLabel('From factory').selectOption({ label: 'L-75' });
-  await pick(page, 'Fabric quality', 'Green', /Green Shade Net/);
+  await pick(page, 'Fabric quality · Specification', 'Green', /Green Shade Net · GREENSHADENET-S1/);
   await expect(page.getByText('2,000.00 m · 1,070.000 kg in stock')).toBeVisible();
 
   await page.getByLabel('Meters').fill('2000.01');
@@ -71,7 +71,7 @@ test('8. dispatch reduces grey stock; over-dispatch is stopped', async ({ page }
   await page.getByLabel('Challan no').fill('DC-501');
   await shot(page, '20-dispatch-form');
   await page.getByRole('button', { name: 'Save dispatch' }).click();
-  await expect(page.getByText('Dispatched 500.00 m / 270.000 kg of Green Shade Net')).toBeVisible();
+  await expect(page.getByText('Dispatched 500.00 m / 270.000 kg of Green Shade Net · GREENSHADENET-S1')).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'Shah Processors' })).toContainText('500.00 m');
 
   await page.goto('/grey?factory=all');

@@ -97,7 +97,9 @@ export interface YarnLedgerRow {
   created_at: string;
 }
 
-export interface BeamSummary {
+export interface BeamSummary extends SpecFields {
+  spec_warp_yarn_quality_id: string | null;
+  spec_weft_yarn_quality_id: string | null;
   beam_id: string;
   beam_no: string;
   status: BeamStatus;
@@ -147,6 +149,8 @@ export interface BeamSummary {
 
 
 export interface ConsumptionLineView extends ConsumptionLine {
+  fabric_specification_id: string;
+  spec_code: string;
   beam_no: string;
   lot_no: string;
   yarn_quality_id: string;
@@ -155,6 +159,8 @@ export interface ConsumptionLineView extends ConsumptionLine {
 }
 
 export interface FabricQualityView extends FabricQuality {
+  spec_count: number;
+  active_spec_count: number;
   warp_yarn_quality_name: string | null;
   weft_yarn_quality_name: string | null;
   warp_denier: number | null;
@@ -196,9 +202,19 @@ export interface LoomStatusRow {
   total_yarn_kg: number | null;
   wasted_on_beam: number | null;
   net_on_beam: number | null;
+  /** Specification running now (from the beam) */
+  fabric_specification_id: string | null;
+  spec_code: string | null;
+  reed: number | null;
+  ends_per_inch: number | null;
+  warp_yarn_quality_name: string | null;
+  weft_yarn_quality_name: string | null;
+  /** Specification the loom is set up for (null = any) */
+  assigned_specification_id: string | null;
+  assigned_spec_code: string | null;
 }
 
-export interface Takeoff {
+export interface Takeoff extends SpecFields {
   id: string;
   entry_date: string;
   shift: string | null;
@@ -238,7 +254,7 @@ export interface Takeoff {
   roll_count: number;
 }
 
-export interface FabricRoll {
+export interface FabricRoll extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code' | 'reed' | 'ends_per_inch'> {
   id: string;
   roll_no: string;
   seq: number;
@@ -256,7 +272,7 @@ export interface FabricRoll {
   fabric_quality_name: string;
 }
 
-export interface GreyStockRow {
+export interface GreyStockRow extends SpecFields {
   fabric_quality_id: string;
   fabric_quality_name: string;
   factory_id: string;
@@ -273,7 +289,7 @@ export interface GreyStockRow {
   unweighed_count: number;
 }
 
-export interface ProductionDaily {
+export interface ProductionDaily extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code'> {
   entry_date: string;
   factory_id: string;
   factory_code: string;
@@ -305,7 +321,7 @@ export interface YarnStockByQualityFactory {
   balance_kg: number;
 }
 
-export interface Dispatch {
+export interface Dispatch extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code'> {
   id: string;
   entry_date: string;
   meters: number;
@@ -326,8 +342,43 @@ export interface LoomRow {
   id: string;
   factory_id: string;
   machine_no: string;
+  fabric_specification_id: string | null;
   status: LoomStatus;
   active: boolean;
   sort_order: number;
   notes: string | null;
+}
+
+/** A specification of a parent fabric quality. Reed and ends per inch are independent. */
+export interface FabricSpecification {
+  id: string;
+  fabric_quality_id: string;
+  fabric_quality_name: string;
+  seq: number;
+  /** System-generated Specification ID, e.g. QUALITY101-S2 */
+  spec_code: string;
+  reed: number | null;
+  ends_per_inch: number | null;
+  warp_yarn_quality_id: string | null;
+  warp_yarn_quality_name: string | null;
+  warp_denier: number | null;
+  weft_yarn_quality_id: string | null;
+  weft_yarn_quality_name: string | null;
+  weft_denier: number | null;
+  active: boolean;
+  notes: string | null;
+  quality_active: boolean;
+  beam_count: number;
+  /** Has beams/production: reed, ends per inch and yarns are locked */
+  has_history: boolean;
+}
+
+/** Fields every row carrying a specification exposes. */
+export interface SpecFields {
+  fabric_specification_id: string;
+  spec_code: string;
+  reed: number | null;
+  ends_per_inch: number | null;
+  warp_yarn_quality_name: string | null;
+  weft_yarn_quality_name: string | null;
 }

@@ -15,24 +15,24 @@ const num = (s: string) => Number(s.replace(/,/g, ''));
 export function DispatchForm({ stock, factories, defaultFactoryId, today }: { stock: GreyStockRow[]; factories: Factory[]; defaultFactoryId?: string; today: string }) {
   const [state, action] = useActionState(dispatchAction, {} as FormState);
   const [factoryId, setFactoryId] = useState(state.values?.factory_id ?? defaultFactoryId ?? factories[0]?.id ?? '');
-  const [qualityId, setQualityId] = useState('');
+  const [specId, setSpecId] = useState('');
   const [meters, setMeters] = useState('');
   const [kgs, setKgs] = useState('');
 
   useEffect(() => {
     if (state.ok) {
-      setQualityId('');
+      setSpecId('');
       setMeters('');
       setKgs('');
     } else if (state.values) {
       setMeters(state.values.meters ?? '');
       setKgs(state.values.kgs ?? '');
-      setQualityId(state.values.fabric_quality_id ?? '');
+      setSpecId(state.values.fabric_specification_id ?? '');
     }
   }, [state]);
 
   const atFactory = stock.filter((s) => s.factory_id === factoryId && (s.stock_m > 0 || s.stock_kg > 0));
-  const row = atFactory.find((s) => s.fabric_quality_id === qualityId);
+  const row = atFactory.find((s) => s.fabric_specification_id === specId);
   // Metres always; kg only when every production entry was weighed (otherwise kg stock is not known).
   const kgKnown = row ? Number(row.unweighed_count ?? 0) === 0 : false;
   const over = row && ((num(meters) > 0 && num(meters) > row.stock_m + 1e-9) || (kgKnown && num(kgs) > 0 && num(kgs) > row.stock_kg + 1e-9));
@@ -42,11 +42,12 @@ export function DispatchForm({ stock, factories, defaultFactoryId, today }: { st
     <form action={action} className="space-y-4" noValidate>
       {state.ok && state.message && <Notice tone="ok">{state.message}</Notice>}
       {state.error && <Notice tone="bad">{state.error}</Notice>}
-      <input type="hidden" name="quality_name" value={row?.fabric_quality_name ?? ''} />
+      <input type="hidden" name="quality_name" value={row ? `${row.fabric_quality_name} · ${row.spec_code}` : ''} />
+      <input type="hidden" name="fabric_quality_id" value={row?.fabric_quality_id ?? ''} />
 
       <div className="grid grid-cols-2 gap-4">
         <Field label={L.dispatch.factory} htmlFor="factory_id" error={err.factory_id}>
-          <select id="factory_id" name="factory_id" value={factoryId} onChange={(e) => { setFactoryId(e.target.value); setQualityId(''); }} className={inputClass}>
+          <select id="factory_id" name="factory_id" value={factoryId} onChange={(e) => { setFactoryId(e.target.value); setSpecId(''); }} className={inputClass}>
             {factories.map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}
           </select>
         </Field>
@@ -58,16 +59,22 @@ export function DispatchForm({ stock, factories, defaultFactoryId, today }: { st
       {atFactory.length === 0 ? (
         <Notice tone="warn">{L.dispatch.noStock}</Notice>
       ) : (
-        <Field label={L.dispatch.fabricQuality} htmlFor="fabric_quality_id" error={err.fabric_quality_id}
+        <Field label={`${L.dispatch.fabricQuality} · ${L.spec.one}`} htmlFor="fabric_specification_id" error={err.fabric_specification_id ?? err.fabric_quality_id}
           hint={row ? (kgKnown ? L.dispatch.inStock(fmtM(row.stock_m), fmtKg(row.stock_kg)) : L.dispatch.inStockM(fmtM(row.stock_m))) : undefined}>
           <Combobox
             key={factoryId}
-            id="fabric_quality_id"
-            name="fabric_quality_id"
-            value={qualityId}
-            onChange={setQualityId}
-            invalid={Boolean(err.fabric_quality_id)}
-            options={atFactory.map((s) => ({ value: s.fabric_quality_id, label: s.fabric_quality_name, detail: `${fmtM(s.stock_m)} m` }))}
+            id="fabric_specification_id"
+            name="fabric_specification_id"
+            value={specId}
+            onChange={setSpecId}
+            invalid={Boolean(err.fabric_specification_id)}
+            options={atFactory.map((s) => ({
+              value: s.fabric_specification_id,
+              label: `${s.fabric_quality_name} · ${s.spec_code}`,
+              detail: `${fmtM(s.stock_m)} m`,
+              group: s.fabric_quality_name,
+              keywords: `${s.reed ?? ''} ${s.ends_per_inch ?? ''}`,
+            }))}
           />
         </Field>
       )}

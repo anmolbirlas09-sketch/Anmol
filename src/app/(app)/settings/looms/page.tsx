@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { Card, PageHeader, SectionTitle } from '@/components/ui';
-import { listFactories } from '@/lib/data/masters';
+import { listFactories, listSpecifications } from '@/lib/data/masters';
 import { listLooms } from '@/lib/data/settings';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: L.settings.looms };
 export default async function LoomSettingsPage() {
   await requireOwner();
   const db = await createClient();
-  const [looms, factories] = await Promise.all([listLooms(db), listFactories(db)]);
+  const [looms, factories, specs] = await Promise.all([listLooms(db), listFactories(db), listSpecifications(db)]);
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader title={L.settings.looms} back="/settings" />
@@ -26,7 +26,7 @@ export default async function LoomSettingsPage() {
           <Card className="divide-y divide-line p-0">
             {looms.filter((l) => l.factory_id === f.id).map((l) => (
               <div key={l.id} className="px-3 py-2">
-                <LoomForm loom={l} factories={factories} />
+                <LoomForm loom={l} factories={factories} specs={specs} />
               </div>
             ))}
           </Card>

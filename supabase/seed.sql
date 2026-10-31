@@ -27,3 +27,16 @@ on conflict do nothing;
 insert into public.suppliers (name, gstin, contact) values
   ('Sample Yarn Suppliers Pvt Ltd', '24AAAAA0000A1Z5', 'Surat')
 on conflict do nothing;
+
+-- One specification per sample quality (reed, ends per inch, warp and weft yarn).
+insert into public.fabric_specifications (fabric_quality_id, seq, spec_code, reed, ends_per_inch, warp_yarn_quality_id, weft_yarn_quality_id)
+select fq.id, 0, '', v.reed, v.epi, w.id, f.id
+from (values
+  ('Mono White',      48, 52, 'Mono 0.25 White', 'Mono 0.25 White'),
+  ('White/Black',     48, 52, 'Mono 0.25 White', 'Mono 0.25 Black'),
+  ('Green Shade Net', 40, 44, 'Mono 0.30 Green', 'Mono 0.30 Green')
+) v(quality, reed, epi, warp, weft)
+join public.fabric_qualities fq on fq.name = v.quality
+join public.yarn_qualities w on w.name = v.warp
+join public.yarn_qualities f on f.name = v.weft
+where not exists (select 1 from public.fabric_specifications s where s.fabric_quality_id = fq.id);

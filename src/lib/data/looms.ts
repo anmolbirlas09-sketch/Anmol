@@ -1,7 +1,7 @@
 import { unwrap } from '../errors';
 import type { BeamSummary, FabricRoll, LoomStatusRow, Takeoff } from '../types';
 import type { ProductionInputForm, TakeoffInput } from '../validation';
-import type { Db } from './client';
+import type { Db, SpecOptional } from './client';
 
 export async function listLoomStatus(db: Db, f: { factoryId?: string; activeOnly?: boolean } = {}): Promise<LoomStatusRow[]> {
   let q = db.from('v_loom_status').select('*');
@@ -54,7 +54,7 @@ export async function recordTakeoff(db: Db, t: TakeoffInput): Promise<{ id: stri
  * beam — all in one transaction. Re-sending the same client_ref returns the
  * first entry instead of creating a duplicate.
  */
-export async function recordProduction(db: Db, p: ProductionInputForm): Promise<Takeoff & { roll_count: number }> {
+export async function recordProduction(db: Db, p: SpecOptional<ProductionInputForm>): Promise<Takeoff & { roll_count: number }> {
   const row = unwrap(
     await db.rpc('record_production', {
       p_loom_id: p.loom_id,
@@ -74,6 +74,7 @@ export async function recordProduction(db: Db, p: ProductionInputForm): Promise<
       p_notes: p.notes ?? null,
       p_finish_beam: p.finish_beam,
       p_client_ref: p.client_ref ?? null,
+      p_fabric_specification_id: p.fabric_specification_id ?? null,
     }),
   ) as { id: string };
   return unwrap(await db.from('v_takeoffs').select('*').eq('id', row.id).single()) as Takeoff & { roll_count: number };

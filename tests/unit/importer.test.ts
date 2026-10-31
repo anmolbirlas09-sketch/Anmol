@@ -7,6 +7,10 @@ const masters: ImportMasters = {
   fabricQualities: [{ id: 'fq-mw', name: 'Mono White' }, { id: 'fq-wb', name: 'White/Black' }],
   factories: [{ id: 'f76', code: 'L-76' }, { id: 'f75', code: 'L-75' }],
   suppliers: [{ id: 's1', name: 'Navsari Yarns' }],
+  specifications: [
+    { id: 'sp-mw1', spec_code: 'MONOWHITE-S1', fabric_quality_id: 'fq-mw' },
+    { id: 'sp-wb1', spec_code: 'WHITEBLACK-S1', fabric_quality_id: 'fq-wb' },
+  ],
   existingLotNos: ['a-100'],
 };
 const TODAY = '2026-10-29';
@@ -83,21 +87,31 @@ describe('yarn import', () => {
 });
 
 describe('grey import', () => {
-  it('reads rows and rejects repeats of the same quality + factory', async () => {
+  it('reads rows (Specification ID optional when the quality has one) and rejects repeats of the same spec + factory', async () => {
     const wb = await fileWith('grey', [
-      ['Mono White', 'L-76', 1000, 520, '01-10-2026'],
-      ['White/Black', 'L-75', '800.005', 420],
-      ['mono white', 'l-76', 5, 2],
-      ['Mono White', 'L-75', 0, 0],
+      ['Mono White', '', 'L-76', 1000, 520, '01-10-2026'],
+      ['White/Black', 'whiteblack-s1', 'L-75', '800.005', 420],
+      ['mono white', 'MONOWHITE-S1', 'l-76', 5, 2],
+      ['Mono White', '', 'L-75', 0, 0],
+      ['Mono White', 'WHITEBLACK-S1', 'L-75', 1, 1],
     ]);
     const r = parseWorkbook(wb, 'grey', masters, TODAY);
     expect(r.errors).toEqual([
-      { row: 4, message: 'Mono White at L-76 is repeated (also row 2)' },
+      { row: 4, message: 'Mono White · MONOWHITE-S1 at L-76 is repeated (also row 2)' },
       { row: 5, message: 'Meters and Kgs cannot both be 0' },
+      { row: 6, message: 'Specification "WHITEBLACK-S1" is not one of Mono White\'s' },
     ]);
     expect(r.rows).toEqual([
-      { row: 2, fabric_quality_id: 'fq-mw', fabric_quality_name: 'Mono White', factory_id: 'f76', factory_code: 'L-76', meters: 1000, kgs: 520, entry_date: '2026-10-01', notes: undefined },
-      { row: 3, fabric_quality_id: 'fq-wb', fabric_quality_name: 'White/Black', factory_id: 'f75', factory_code: 'L-75', meters: 800.01, kgs: 420, entry_date: TODAY, notes: undefined },
+      { row: 2, fabric_quality_id: 'fq-mw', fabric_quality_name: 'Mono White', fabric_specification_id: 'sp-mw1', spec_code: 'MONOWHITE-S1', factory_id: 'f76', factory_code: 'L-76', meters: 1000, kgs: 520, entry_date: '2026-10-01', notes: undefined },
+      { row: 3, fabric_quality_id: 'fq-wb', fabric_quality_name: 'White/Black', fabric_specification_id: 'sp-wb1', spec_code: 'WHITEBLACK-S1', factory_id: 'f75', factory_code: 'L-75', meters: 800.01, kgs: 420, entry_date: TODAY, notes: undefined },
     ]);
+  });
+
+  it('a quality with several specifications needs the Specification ID', async () => {
+    const m = { ...masters, specifications: [...masters.specifications!, { id: 'sp-mw2', spec_code: 'MONOWHITE-S2', fabric_quality_id: 'fq-mw' }] };
+    const wb = await fileWith('grey', [['Mono White', '', 'L-76', 10, 5], ['Mono White', 'MONOWHITE-S2', 'L-76', 10, 5]]);
+    const r = parseWorkbook(wb, 'grey', m, TODAY);
+    expect(r.errors).toEqual([{ row: 2, message: 'Mono White has 2 specifications: give the Specification ID' }]);
+    expect(r.rows.map((x) => x.spec_code)).toEqual(['MONOWHITE-S2']);
   });
 });
