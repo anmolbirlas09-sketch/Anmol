@@ -66,7 +66,8 @@ describe('dashboard numbers', () => {
     expect(round(d.yarnKg)).toBe(350); // A-101 50 + B-202 300
     expect([round(d.greyM, 2), round(d.greyKg)]).toEqual([2010, 1075]);
     expect([d.looms.length, d.running, d.idle, d.maintenance]).toEqual([68, 2, 66, 0]);
-    expect([round(d.todayM, 2), round(d.todayKg), d.todayTakeoffs]).toEqual([2000, 1070, 2]);
+    expect([round(d.todayM, 2), round(d.todayKg!), d.todayTakeoffs]).toEqual([2000, 1070, 2]);
+    expect([d.todayWastedM, d.todayNetM, d.todayWastagePct]).toEqual([0, 2000, 0]);
     expect(d.grey.map((g) => [g.fabric_quality_name, round(g.stock_m, 2)])).toEqual([['Mono White', 1210], ['White/Black', 800]]);
     const low = d.yarn.find((y) => y.yarn_quality_name === 'Mono 0.25 White')!;
     expect([low.balance_kg, low.is_low_stock]).toEqual([50, true]); // below the 200 kg level
@@ -76,7 +77,7 @@ describe('dashboard numbers', () => {
     const d = await loadDashboard(owner, { today, factoryId: id['L-75'] });
     expect([d.looms.length, d.running, d.idle]).toEqual([32, 1, 31]);
     expect([round(d.greyM, 2), round(d.greyKg)]).toEqual([800, 420]);
-    expect([round(d.todayM, 2), round(d.todayKg)]).toEqual([800, 420]);
+    expect([round(d.todayM, 2), round(d.todayKg!)]).toEqual([800, 420]);
     expect(round(d.yarnKg)).toBe(300); // B-202 was received at L-75
     expect(d.yarn.every((y) => y.is_low_stock === null)).toBe(true);
   });

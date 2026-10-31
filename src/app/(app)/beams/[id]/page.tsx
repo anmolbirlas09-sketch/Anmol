@@ -102,11 +102,25 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
         <>
           <SectionTitle>{L.beam.yield}</SectionTitle>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="beam-yield">
-            <Stat label={L.beam.greyProduced} value={fmtM(beam.grey_meters)} unit="m" />
-            <Stat label={`${L.beam.greyProduced} kg`} value={fmtKg(beam.grey_kg)} unit="kg" />
-            <Stat label={L.beam.wastage} value={`${fmtKg(beam.wastage_kg)} kg`} unit={beam.wastage_pct != null ? `(${beam.wastage_pct.toFixed(2)}%)` : undefined} tone={beam.wastage_kg < 0 ? 'bad' : undefined} />
-            <Stat label={L.takeoff.metersPerKg} value={beam.meters_per_kg != null ? beam.meters_per_kg.toFixed(3) : L.app.none} />
+            <Stat label={L.production.total} value={fmtM(beam.grey_meters)} unit="m" />
+            <Stat label={L.production.wasted} value={fmtM(beam.wasted_meters)} unit="m" />
+            <Stat label={L.production.net} value={fmtM(beam.net_meters)} unit="m" />
+            <Stat label={L.production.wastagePct} value={beam.wastage_pct !== null ? `${beam.wastage_pct.toFixed(2)}%` : L.app.none} sub={`${beam.roll_count} ${L.production.rollsTitle.toLowerCase()}`} />
           </div>
+          {[beam.estimated_kg, beam.grey_kg, beam.prod_warp_kg, beam.prod_weft_kg, beam.waste_kg_actual, beam.waste_kg_estimated].some((x) => x !== null) && (
+            <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4" data-testid="beam-weights">
+              <Stat label={`${L.production.estimatedKg} (${L.production.estimatedTag})`} value={beam.estimated_kg !== null ? fmtKg(beam.estimated_kg) : L.app.none} unit={beam.estimated_kg !== null ? 'kg' : undefined} />
+              <Stat label={`${L.reports.col.weighedKg} (${L.production.actualTag})`} value={beam.grey_kg !== null ? fmtKg(beam.grey_kg) : L.app.none} unit={beam.grey_kg !== null ? 'kg' : undefined}
+                sub={beam.meters_per_kg !== null ? `${beam.meters_per_kg.toFixed(3)} ${L.takeoff.metersPerKg}` : undefined} />
+              <Stat label={L.beam.yarnRecorded} value={beam.prod_total_yarn_kg !== null ? fmtKg(beam.prod_total_yarn_kg) : L.app.none} unit={beam.prod_total_yarn_kg !== null ? 'kg' : undefined}
+                sub={`${L.beam.warp} ${beam.prod_warp_kg !== null ? fmtKg(beam.prod_warp_kg) : L.app.none} · ${L.beam.weft} ${beam.prod_weft_kg !== null ? fmtKg(beam.prod_weft_kg) : L.app.none}`} />
+              <Stat label={L.production.kgWastageTitle}
+                value={beam.waste_kg_actual !== null ? `${fmtKg(beam.waste_kg_actual)} kg` : beam.waste_kg_estimated !== null ? `≈${fmtKg(beam.waste_kg_estimated)} kg` : L.app.none}
+                sub={beam.waste_kg_actual !== null
+                  ? `${L.production.actualTag}${beam.weight_wastage_pct_actual !== null ? ` · ${beam.weight_wastage_pct_actual.toFixed(2)}%` : ''}`
+                  : beam.waste_kg_estimated !== null ? L.production.estimatedTag : undefined} />
+            </div>
+          )}
         </>
       )}
 

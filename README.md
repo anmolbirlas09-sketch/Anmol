@@ -30,7 +30,7 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | `/looms` | All 68 looms as tiles by factory (green = running, with beam and meters so far); factory toggle |
 | `/looms/load` | Load on loom: pick a prepared beam and a free loom (beam's factory listed first) |
 | `/looms/[id]` | One loom: current beam, take-off form, "Mark beam finished", "Unload" for supervisors (only before any fabric), loom history; load form when idle |
-| `/takeoff` | Fabric take-off: pick a running loom (its beam fills in), meters + kg (live m/kg), shift, roll no, "last fabric — finish the beam" |
+| `/takeoff` | **Production entry (metre-first):** 1 loom + fabric quality → 2 total metres → 3 roll length → 4 "How many metres of fabric were wasted?" → 5 net usable m and wastage % shown live, with the roll split → 6 optional weights (GSM + width → *estimated* kg, *actual* weighed kg, warp/weft kg; then measured waste kg **or** wastage %) → 7 save (rolls created, stock updated) |
 | `/grey` | Grey stock (m and kg) by fabric quality with the factory split; factory toggle; Dispatch button |
 | `/dispatch` | Grey dispatch: factory → quality (shows stock there), meters + kg, party, challan, rolls; blocks more than in stock; recent dispatches |
 | `/grey/adjust`, lot page | Signed stock adjustments with a reason (supervisor / owner) |
@@ -62,6 +62,7 @@ supabase/
     …0007_takeoff_views.sql   v_takeoffs; v_loom_status gains expected length + yarn used
     …0008_dashboard_views.sql v_production_daily (per day, loom, quality)
     …0009_reports.sql         report functions (yarn by quality/lot, grey summary, loom production), v_dispatches
+    …0010_metre_first_production.sql  metre-first production: wasted/net metres, rolls, optional weights, KG wastage, record_production()
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -109,12 +110,14 @@ DECISIONS.md                  assumptions and design choices
 |---|---|
 | Yarn stock by quality | Opening, inward, warp, weft, adjustments, closing kg per yarn quality |
 | Yarn stock ledger by lot | The same per lot |
-| Beam register | Beam → loom → warp / weft / total yarn → grey m & kg → wastage kg & % → m/kg |
-| Loom-wise production | Take-offs, meters, kg per loom and fabric quality, daily or monthly, per factory |
+| Production register | Every production entry: total / wasted / net metres, wastage %, rolls, GSM, width, estimated and weighed kg, warp / weft / total yarn kg, waste kg (actual or estimated) |
+| Loom-wise production | The same totals per loom and fabric quality, daily or monthly, per factory |
+| Beam register | Beam → loom → yarn issued → production metres and wastage → weights where recorded |
+| Roll tracking | Every roll: roll no, date, loom, beam, quality, metres |
 | Grey stock summary | Opening, produced, dispatched, adjusted, closing (m and kg) per fabric quality and factory |
 | Variance report | Planned vs actual warp and weft kg per beam; rows over the threshold in red |
 
-"Opening" is everything before the *From* date; "closing" is everything up to the *To* date. Excel files contain real numbers and dates (formatted kg 0.000, m 0.00, dd-mm-yyyy) with a totals row; PDFs are A4 landscape. Factory staff only get their own factory.
+"Opening" is everything before the *From* date; "closing" is everything up to the *To* date. Production, loom, beam, roll and variance reports also filter by loom, fabric quality and beam number. Weights that were not recorded show as blank, never 0, and estimated and actual kg are separate columns. Excel files contain real numbers and dates (formatted kg 0.000, m 0.00, dd-mm-yyyy) with a totals row; PDFs are A4 landscape. Factory staff only get their own factory.
 
 ## Opening stock import
 
@@ -199,7 +202,7 @@ Database tests cover: the full §8 acceptance test (run as an authenticated owne
 
 ## Deploy
 
-1. `supabase db push` (applies all migrations, 0001–0009).
+1. `supabase db push` (applies all migrations, 0001–0010).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
 3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
 4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

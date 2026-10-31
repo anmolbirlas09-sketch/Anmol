@@ -1,6 +1,6 @@
 import { unwrap } from '../errors';
-import type { BeamSummary, LoomStatusRow, Takeoff } from '../types';
-import type { TakeoffInput } from '../validation';
+import type { BeamSummary, FabricRoll, LoomStatusRow, Takeoff } from '../types';
+import type { ProductionInputForm, TakeoffInput } from '../validation';
 import type { Db } from './client';
 
 export async function listLoomStatus(db: Db, f: { factoryId?: string; activeOnly?: boolean } = {}): Promise<LoomStatusRow[]> {
@@ -46,6 +46,44 @@ export async function recordTakeoff(db: Db, t: TakeoffInput): Promise<{ id: stri
       p_finish_beam: t.finish_beam,
     }),
   ) as { id: string; beam_id: string };
+}
+
+/**
+ * Metre-first production entry (one per loom per shift, typically): stores the
+ * entry, creates its rolls from the usable metres and optionally finishes the
+ * beam — all in one transaction. Re-sending the same client_ref returns the
+ * first entry instead of creating a duplicate.
+ */
+export async function recordProduction(db: Db, p: ProductionInputForm): Promise<Takeoff & { roll_count: number }> {
+  const row = unwrap(
+    await db.rpc('record_production', {
+      p_loom_id: p.loom_id,
+      p_fabric_quality_id: p.fabric_quality_id,
+      p_meters: p.meters,
+      p_wasted_meters: p.wasted_meters,
+      p_roll_length_m: p.roll_length_m,
+      p_entry_date: p.entry_date,
+      p_shift: p.shift ?? null,
+      p_gsm: p.gsm ?? null,
+      p_width_m: p.width_m ?? null,
+      p_weighed_kg: p.weighed_kg ?? null,
+      p_warp_kg: p.warp_kg ?? null,
+      p_weft_kg: p.weft_kg ?? null,
+      p_waste_kg: p.waste_kg ?? null,
+      p_waste_pct: p.waste_pct ?? null,
+      p_notes: p.notes ?? null,
+      p_finish_beam: p.finish_beam,
+      p_client_ref: p.client_ref ?? null,
+    }),
+  ) as { id: string };
+  return unwrap(await db.from('v_takeoffs').select('*').eq('id', row.id).single()) as Takeoff & { roll_count: number };
+}
+
+export async function listRolls(db: Db, f: { productionId?: string; beamId?: string; limit?: number } = {}): Promise<FabricRoll[]> {
+  let q = db.from('v_fabric_rolls').select('*');
+  if (f.productionId) q = q.eq('production_id', f.productionId);
+  if (f.beamId) q = q.eq('beam_id', f.beamId);
+  return unwrap(await q.order('entry_date', { ascending: false }).order('roll_no').limit(f.limit ?? 500));
 }
 
 export async function listTakeoffs(

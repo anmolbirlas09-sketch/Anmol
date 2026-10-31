@@ -2,6 +2,7 @@
 // pushed to an open dashboard when someone else enters data.
 import { expect, test, type Page } from '@playwright/test';
 import { admin } from '../db/db';
+import { fillProduction } from './production-helpers';
 
 const SHOTS = process.env.E2E_SCREENSHOTS;
 const shot = async (page: Page, name: string) => {
@@ -63,10 +64,9 @@ test('the dashboard updates live while someone else loads a beam and records a t
   await expect(tile).toHaveAttribute('data-status', 'running', { timeout: 10_000 });
   await expect(page.getByTestId('stat-looms')).toContainText(`${runningBefore + 1} / 68`);
 
-  await floor.getByLabel('Meters').fill('100');
-  await floor.getByLabel('Kgs').fill('50');
-  await floor.getByRole('button', { name: 'Save take-off' }).click();
-  await expect(floor.getByText('Saved 100.00 m / 50.000 kg from L76-20')).toBeVisible();
+  await fillProduction(floor, { meters: '100', wasted: '0', roll: '50', weighed: '50' });
+  await floor.getByRole('button', { name: 'Save production' }).click();
+  await expect(floor.getByText('Saved: 100.00 m usable in 2 rolls from L76-20')).toBeVisible();
 
   await expect
     .poll(async () => firstNumber((await page.getByTestId('stat-today').locator('.text-xl').textContent()) ?? ''), { timeout: 10_000 })
@@ -82,7 +82,7 @@ test('the dashboard updates live while someone else loads a beam and records a t
   await expect(sheet).toContainText('100.00 m · 50.000 kg');
   await expect(sheet).toContainText('200.000 kg'); // warp
   await expect(sheet).toContainText('150.000 kg'); // weft
-  await expect(sheet.getByRole('link', { name: 'Take-off' })).toHaveAttribute('href', /\/takeoff\?loom=/);
+  await expect(sheet.getByRole('link', { name: 'Production' })).toHaveAttribute('href', /\/takeoff\?loom=/);
   await shot(page, '18-dashboard-sheet');
   await sheet.getByRole('button', { name: 'Close' }).click();
   await expect(sheet).toBeHidden();

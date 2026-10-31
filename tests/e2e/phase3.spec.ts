@@ -2,6 +2,7 @@
 // finishing a beam — the §8 steps 5–9 numbers, through the screens.
 import { expect, test, type Page } from '@playwright/test';
 import { admin } from '../db/db';
+import { fillProduction } from './production-helpers';
 
 const SHOTS = process.env.E2E_SCREENSHOTS;
 const shot = async (page: Page, name: string) => {
@@ -92,15 +93,13 @@ test('6–7. take-offs build grey stock; wastage shows on the beam', async ({ pa
   await pick(page, 'Loom', 'L76-05', 'L76-05');
   await expect(page.getByTestId('takeoff-beam')).toContainText('Beam P-001 · Mono White');
   await expect(page.getByTestId('takeoff-beam')).toContainText('0.00 m so far of ~2,912.62 m expected');
-  await page.getByLabel('Meters').fill('1200');
-  await page.getByLabel('Kgs').fill('650');
-  await expect(page.getByText('1.846 m / kg')).toBeVisible();
+  await expect(page.getByLabel('Fabric quality', { exact: true })).toHaveValue(/.+/); // filled from the beam
+  await fillProduction(page, { meters: '1200', wasted: '0', roll: '100', weighed: '650' });
   await page.getByLabel('Shift').selectOption('day');
-  await page.getByLabel('Roll / piece no').fill('R-1');
   await shot(page, '13-takeoff-form');
-  await page.getByRole('button', { name: 'Save take-off' }).click();
-  await expect(page.getByText('Saved 1,200.00 m / 650.000 kg from L76-05')).toBeVisible();
-  await expect(page.getByLabel('Meters')).toHaveValue('');
+  await page.getByRole('button', { name: 'Save production' }).click();
+  await expect(page.getByText('Saved: 1,200.00 m usable in 12 rolls from L76-05')).toBeVisible();
+  await expect(page.getByLabel('Total production (m)')).toHaveValue('');
   await expect(page.getByTestId('takeoff-beam')).toContainText('1,200.00 m so far'); // refreshed
   await expect(page.getByRole('listitem').filter({ hasText: 'P-001' }).first()).toContainText('1,200.00 m');
 
@@ -110,10 +109,9 @@ test('6–7. take-offs build grey stock; wastage shows on the beam', async ({ pa
   await owner.goto('/looms?factory=all');
   await owner.getByRole('link', { name: /^L75-12,/ }).click();
   await expect(owner.getByRole('heading', { level: 1 })).toHaveText('L75-12');
-  await owner.getByLabel('Meters').fill('800');
-  await owner.getByLabel('Kgs').fill('420');
-  await owner.getByRole('button', { name: 'Save take-off' }).click();
-  await expect(owner.getByText('Saved 800.00 m / 420.000 kg from L75-12')).toBeVisible();
+  await fillProduction(owner, { meters: '800', wasted: '0', roll: '100', weighed: '420' });
+  await owner.getByRole('button', { name: 'Save production' }).click();
+  await expect(owner.getByText('Saved: 800.00 m usable in 8 rolls from L75-12')).toBeVisible();
   await shot(owner, '14-loom-page');
 
   // Grey stock: 2,000 m / 1,070 kg, split by quality and factory.
@@ -138,10 +136,15 @@ test('6–7. take-offs build grey stock; wastage shows on the beam', async ({ pa
   // 7. Beam P-001 wastage
   await page.goto('/beams?q=P-001');
   await page.getByRole('link', { name: /P-001/ }).click();
+  // Metre-first: total / wasted / net / % — and no "yarn − fabric" wastage figure.
   const y = page.getByTestId('beam-yield');
-  await expect(y).toContainText('50.000 kg');
-  await expect(y).toContainText('(7.14%)');
-  await expect(y).toContainText('1.846');
+  await expect(y).toContainText('1,200.00');
+  await expect(y).toContainText('0.00%');
+  const w = page.getByTestId('beam-weights');
+  await expect(w).toContainText('650.000'); // weighed (actual)
+  await expect(w).toContainText('1.846 m / kg');
+  // No KG wastage was measured, so none is shown (yarn 700 − fabric 650 is not wastage).
+  await expect(w.getByText('Weight wastage', { exact: true }).locator('..')).toContainText('—');
   await shot(page, '16-beam-yield');
 });
 
@@ -161,10 +164,9 @@ test('9. finishing a beam frees its loom; "last fabric" finishes in the same ste
   await signIn(page, 'owner@test.local');
   await page.goto('/takeoff');
   await pick(page, 'Loom', 'L75-12', 'L75-12');
-  await page.getByLabel('Meters').fill('5');
-  await page.getByLabel('Kgs').fill('2');
+  await fillProduction(page, { meters: '5', wasted: '0', roll: '5', weighed: '2' });
   await page.getByText('This was the last fabric — mark the beam finished').click();
-  await page.getByRole('button', { name: 'Save take-off' }).click();
+  await page.getByRole('button', { name: 'Save production' }).click();
   await expect(page.getByText('Beam P-002 finished; the loom is free')).toBeVisible();
   await expect(page.getByText('No looms are running. Load a beam first.')).toBeVisible();
 });
@@ -176,10 +178,9 @@ test('finishing via take-off on a loom page confirms on that page', async ({ pag
   await pick(page, 'Free loom', 'L76-07', 'L76-07');
   await page.getByRole('button', { name: 'Load on loom' }).click();
   await expect(page.getByText('Beam P-003 loaded on L76-07')).toBeVisible();
-  await page.getByLabel('Meters').fill('100');
-  await page.getByLabel('Kgs').fill('50');
+  await fillProduction(page, { meters: '100', wasted: '0', roll: '50', weighed: '50' });
   await page.getByText('This was the last fabric — mark the beam finished').click();
-  await page.getByRole('button', { name: 'Save take-off' }).click();
+  await page.getByRole('button', { name: 'Save production' }).click();
   await expect(page.getByText('Beam P-003 finished; the loom is free')).toBeVisible();
   await expect(page.getByText('No beam running')).toBeVisible();
 });

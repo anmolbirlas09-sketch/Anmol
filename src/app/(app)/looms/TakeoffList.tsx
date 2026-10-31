@@ -12,32 +12,37 @@ export function TakeoffList({ rows, canDelete, returnTo, show = 'both' }: { rows
     <Card className="p-0">
       <ul className="divide-y divide-line">
         {rows.map((t) => (
-          <li key={t.id} className="flex items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0">
-              <div className="font-semibold">
-                {show !== 'beam' && <Link href={`/looms/${t.loom_id}`} className="text-brand">{t.machine_no}</Link>}
-                {show === 'both' && ' · '}
-                {show !== 'loom' && <Link href={`/beams/${t.beam_id}`} className="text-brand">{t.beam_no}</Link>}
-                <span className="font-normal"> · {t.fabric_quality_name}</span>
+          <li key={t.id} className="px-4 py-3">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="font-semibold">
+                  {show !== 'beam' && <Link href={`/looms/${t.loom_id}`} className="text-brand">{t.machine_no}</Link>}
+                  {show === 'both' && ' · '}
+                  {show !== 'loom' && <Link href={`/beams/${t.beam_id}`} className="text-brand">{t.beam_no}</Link>}
+                  <span className="font-normal"> · {t.fabric_quality_name}</span>
+                </div>
+                <div className="truncate text-xs text-muted">
+                  {fmtDate(t.entry_date)}
+                  {t.shift ? ` · ${L.takeoff.shifts[t.shift] ?? t.shift}` : ''}
+                  {t.roll_count ? ` · ${t.roll_count} ${L.production.rollsTitle.toLowerCase()}` : t.roll_no ? ` · ${t.roll_no}` : ''}
+                  {t.created_by_name ? ` · ${t.created_by_name}` : ''}
+                </div>
               </div>
-              <div className="truncate text-xs text-muted">
-                {fmtDate(t.entry_date)}
-                {t.shift ? ` · ${L.takeoff.shifts[t.shift] ?? t.shift}` : ''}
-                {t.roll_no ? ` · ${t.roll_no}` : ''}
-                {t.created_by_name ? ` · ${t.created_by_name}` : ''}
+              <div className="flex shrink-0 items-center gap-2">
+                <span className="tnum font-semibold">{fmtM(t.meters)} m</span>
+                {canDelete && (
+                  <form action={deleteTakeoffAction}>
+                    <input type="hidden" name="id" value={t.id} />
+                    <input type="hidden" name="return" value={returnTo} />
+                    <ConfirmButton className="min-h-10 rounded-md px-2 text-sm font-semibold text-bad">{L.app.delete}</ConfirmButton>
+                  </form>
+                )}
               </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <div className="tnum text-right">
-                <div className="font-semibold">{fmtM(t.meters)} m</div>
-                <div className="text-xs text-muted">{fmtKg(t.kgs)} kg</div>
-              </div>
-              {canDelete && (
-                <form action={deleteTakeoffAction}>
-                  <input type="hidden" name="id" value={t.id} />
-                  <input type="hidden" name="return" value={returnTo} />
-                  <ConfirmButton className="min-h-10 rounded-md px-2 text-sm font-semibold text-bad">{L.app.delete}</ConfirmButton>
-                </form>
+            <div className="tnum mt-1 text-xs text-muted" data-testid="production-row">
+              {L.production.net} {fmtM(t.net_meters)} m · {L.production.wasted} {fmtM(t.wasted_meters)} m ({t.wastage_pct.toFixed(2)}%)
+              {(t.kgs !== null || t.estimated_kg !== null) && (
+                <> · {t.kgs !== null ? `${fmtKg(t.kgs)} kg ${L.production.weighed}` : `≈${fmtKg(t.estimated_kg)} kg ${L.production.estimatedTag}`}</>
               )}
             </div>
           </li>
