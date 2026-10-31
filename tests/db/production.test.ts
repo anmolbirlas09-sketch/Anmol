@@ -152,6 +152,13 @@ describe('validation', () => {
     expect(e.message).toMatch(/is weaving Mono White, not the fabric quality selected/);
   });
 
+  it('shift is day or night only', async () => {
+    const r = await db.sql.query(`select * from record_production(p_loom_id => $1, p_fabric_quality_id => $2, p_meters => 10, p_wasted_meters => 0, p_roll_length_m => 10, p_shift => 'night')`, [loom, id.mw]);
+    expect(r.rows[0].shift).toBe('night');
+    const e = await pgError(() => db.sql.query(`select * from record_production(p_loom_id => $1, p_fabric_quality_id => $2, p_meters => 10, p_wasted_meters => 0, p_roll_length_m => 10, p_shift => 'A')`, [loom, id.mw]));
+    expect(e.code).toBe('23514');
+  });
+
   it('an absurd roll length is refused', async () => {
     expect((await pgError(() => record(loom, { meters: 1000, wasted: 0, roll: 1 }))).message).toMatch(/more than 500 rolls/);
   });

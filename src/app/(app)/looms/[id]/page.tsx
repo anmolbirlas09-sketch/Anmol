@@ -6,7 +6,7 @@ import { Badge, Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, type 
 import { canEdit, requireUser } from '@/lib/auth';
 import { getLoomStatus, listPreparedBeams, listTakeoffs } from '@/lib/data/looms';
 import { listFabricQualities } from '@/lib/data/masters';
-import { fmtDateTime, fmtKg, fmtM, todayIST } from '@/lib/format';
+import { currentShift, fmtDateTime, fmtKg, fmtM, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { LoomStatus } from '@/lib/types';
@@ -79,7 +79,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
             <>
               <SectionTitle>{L.takeoff.title}</SectionTitle>
               <Card>
-                <ProductionForm looms={[loom]} qualities={qualities} fixedLoomId={loom.loom_id} today={todayIST()} returnTo={here} />
+                <ProductionForm looms={[loom]} qualities={qualities} fixedLoomId={loom.loom_id} today={todayIST()} shiftNow={currentShift()} returnTo={here} />
               </Card>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <form action={finishBeamAction}>

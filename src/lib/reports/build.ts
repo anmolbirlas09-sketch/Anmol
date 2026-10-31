@@ -102,7 +102,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         return q.order('entry_date').order('created_at').range(from, to);
       });
       const rows: Row[] = entries.map((t) => ({
-        entry_date: t.entry_date, shift: t.shift ? (L.takeoff.shifts[t.shift] ?? t.shift) : null, machine_no: t.machine_no, beam_no: t.beam_no,
+        entry_date: t.entry_date, shift: t.shift ? (L.takeoff.shiftShort[t.shift] ?? t.shift) : null, machine_no: t.machine_no, beam_no: t.beam_no,
         fabric_quality_name: t.fabric_quality_name, meters: t.meters, wasted_meters: t.wasted_meters, net_meters: t.net_meters,
         wastage_pct: t.wastage_pct, roll_count: t.roll_count, roll_length_m: t.roll_length_m, gsm: t.gsm, width_m: t.width_m,
         estimated_kg: t.estimated_kg, kgs: t.kgs, warp_kg: t.warp_kg, weft_kg: t.weft_kg, total_yarn_kg: t.total_yarn_kg,

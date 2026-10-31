@@ -42,6 +42,10 @@ test('680 m produced, 33 m wasted → 647 m usable, 4.85 %, 7 rolls; no KG neede
   await page.getByRole('listbox').getByRole('option', { name: 'L76-15' }).click();
   await expect(page.getByLabel('Fabric quality', { exact: true }).locator('option:checked')).toHaveText('Mono White');
 
+  // Two shifts, the current one pre-selected
+  await expect(page.getByLabel('Shift').locator('option')).toHaveText(['—', 'Day (8 am – 8 pm)', 'Night (8 pm – 8 am)']);
+  await expect(page.getByLabel('Shift')).toHaveValue(/^(day|night)$/);
+
   // Steps 2–4
   await page.getByLabel('Total production (m)').fill('680');
   await page.getByLabel('Roll length (m)').fill('100');

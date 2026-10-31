@@ -23,7 +23,7 @@ export function TakeoffList({ rows, canDelete, returnTo, show = 'both' }: { rows
                 </div>
                 <div className="truncate text-xs text-muted">
                   {fmtDate(t.entry_date)}
-                  {t.shift ? ` · ${L.takeoff.shifts[t.shift] ?? t.shift}` : ''}
+                  {t.shift ? ` · ${L.takeoff.shiftShort[t.shift] ?? t.shift}` : ''}
                   {t.roll_count ? ` · ${t.roll_count} ${L.production.rollsTitle.toLowerCase()}` : t.roll_no ? ` · ${t.roll_no}` : ''}
                   {t.created_by_name ? ` · ${t.created_by_name}` : ''}
                 </div>

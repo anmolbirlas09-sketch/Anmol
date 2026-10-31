@@ -65,6 +65,12 @@ describe('production form validation', () => {
     expect(Object.keys(missing.fieldErrors!).sort()).toEqual(['meters', 'roll_length_m', 'wasted_meters']);
   });
 
+  it('shift: day or night only, optional', () => {
+    expect(parseForm(productionSchema, fd({ ...base, shift: 'night' })).data?.shift).toBe('night');
+    expect(parseForm(productionSchema, fd({ ...base, shift: '' })).data?.shift).toBeUndefined();
+    expect(parseForm(productionSchema, fd({ ...base, shift: 'A' })).error?.fieldErrors?.shift).toBeTruthy();
+  });
+
   it('0 wasted metres is allowed; more than total is not', () => {
     expect(parseForm(productionSchema, fd({ ...base, wasted_meters: '0' })).data?.wasted_meters).toBe(0);
     expect(parseForm(productionSchema, fd({ ...base, wasted_meters: '681' })).error?.fieldErrors).toEqual({ wasted_meters: 'Wasted metres cannot be more than total production' });

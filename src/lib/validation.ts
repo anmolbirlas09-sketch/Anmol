@@ -80,7 +80,8 @@ export const consumptionSchema = z.object({
 });
 export type ConsumptionInput = z.infer<typeof consumptionSchema>;
 
-export const SHIFTS = ['day', 'night', 'A', 'B', 'C'] as const;
+/** Day 8 am – 8 pm, night 8 pm – 8 am (see currentShift in format.ts). */
+export const SHIFTS = ['day', 'night'] as const;
 
 export const loadBeamSchema = z.object({
   beam_id: uuid(),
