@@ -7,7 +7,7 @@ import { listFabricQualities, listFactories, listSpecifications } from '@/lib/da
 import { getVarianceThreshold } from '@/lib/data/settings';
 import { L } from '@/lib/labels';
 import { buildReport } from '@/lib/reports/build';
-import { FILTERABLE, formatCell, isNumeric, isReportKind } from '@/lib/reports/model';
+import { FILTERABLE, TIMED, formatCell, isNumeric, isReportKind } from '@/lib/reports/model';
 import { reportParams, reportQuery } from '@/lib/reports/params';
 import { createClient } from '@/lib/supabase/server';
 import { ReportFilters } from '../ReportFilters';
@@ -27,7 +27,7 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
     filterable ? listSpecifications(db) : Promise.resolve([]),
   ]);
   const visibleLooms = looms.filter((l) => !user.factory_id || l.factory_id === user.factory_id);
-  const p = reportParams(await searchParams, factories, user.factory_id, { looms, qualities, specs });
+  const p = reportParams(await searchParams, factories, user.factory_id, { looms, qualities, specs }, kind === 'daily');
   const [r, threshold] = await Promise.all([buildReport(db, kind, p), kind === 'variance' ? getVarianceThreshold(db) : null]);
   const q = reportQuery(p);
 
@@ -53,6 +53,8 @@ export default async function ReportPage({ params, searchParams }: PageProps<'/r
           qualities={filterable ? qualities : undefined}
           specs={filterable ? specs : undefined}
           specsToggle={kind === 'specifications'}
+          timed={TIMED.includes(kind)}
+          groupBy={kind === 'daily'}
         />
       </div>
       <p className="mb-2 text-sm text-muted">

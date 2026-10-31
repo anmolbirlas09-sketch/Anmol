@@ -10,8 +10,9 @@ export async function greyStock(db: Db, f: { factoryId?: string } = {}): Promise
 }
 
 export interface GreySpecGroup {
-  fabric_specification_id: string;
-  spec_code: string;
+  /** null: specification not filled in on the beam card yet */
+  fabric_specification_id: string | null;
+  spec_code: string | null;
   reed: number | null;
   ends_per_inch: number | null;
   warp_yarn_quality_name: string | null;
@@ -26,8 +27,9 @@ export interface GreySpecGroup {
 }
 
 export interface GreyByQuality {
-  fabric_quality_id: string;
-  fabric_quality_name: string;
+  /** null: production on beams whose card has no quality yet */
+  fabric_quality_id: string | null;
+  fabric_quality_name: string | null;
   produced_m: number;
   produced_kg: number;
   dispatched_m: number;
@@ -46,7 +48,8 @@ export interface GreyByQuality {
 export function groupGreyByQuality(rows: GreyStockRow[]): GreyByQuality[] {
   const map = new Map<string, GreyByQuality>();
   for (const r of rows) {
-    const g = map.get(r.fabric_quality_id) ?? {
+    const key = r.fabric_quality_id ?? '';
+    const g: GreyByQuality = map.get(key) ?? {
       fabric_quality_id: r.fabric_quality_id, fabric_quality_name: r.fabric_quality_name,
       produced_m: 0, produced_kg: 0, dispatched_m: 0, dispatched_kg: 0, stock_m: 0, stock_kg: 0, unweighed_count: 0,
       factories: [], specs: [],
@@ -65,7 +68,7 @@ export function groupGreyByQuality(rows: GreyStockRow[]): GreyByQuality[] {
       f.stock_kg += r.stock_kg;
     } else g.factories.push({ factory_id: r.factory_id, factory_code: r.factory_code, stock_m: r.stock_m, stock_kg: r.stock_kg });
 
-    let sp = g.specs.find((x) => x.fabric_specification_id === r.fabric_specification_id);
+    let sp: GreySpecGroup | undefined = g.specs.find((x) => x.fabric_specification_id === r.fabric_specification_id);
     if (!sp) {
       sp = {
         fabric_specification_id: r.fabric_specification_id, spec_code: r.spec_code, reed: r.reed, ends_per_inch: r.ends_per_inch,
@@ -80,8 +83,9 @@ export function groupGreyByQuality(rows: GreyStockRow[]): GreyByQuality[] {
     sp.stock_kg += r.stock_kg;
     sp.unweighed_count += Number(r.unweighed_count ?? 0);
     sp.factories.push(r);
-    map.set(r.fabric_quality_id, g);
+    map.set(key, g);
   }
-  for (const g of map.values()) g.specs.sort((a, b) => a.spec_code.localeCompare(b.spec_code, 'en', { numeric: true }));
-  return [...map.values()];
+  for (const g of map.values()) g.specs.sort((a, b) => (a.spec_code ?? '~').localeCompare(b.spec_code ?? '~', 'en', { numeric: true }));
+  // "Quality not set" last
+  return [...map.values()].sort((a, b) => Number(a.fabric_quality_id === null) - Number(b.fabric_quality_id === null));
 }

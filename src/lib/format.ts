@@ -49,6 +49,22 @@ export function currentShift(now = new Date()): { shift: 'day' | 'night'; date: 
   return { shift: 'night', date: todayIST(new Date(now.getTime() - 24 * 3600 * 1000)) };
 }
 
+/** '17:10:00' → '5:10 PM' */
+export function fmtTime(v: string | null | undefined): string {
+  const m = v ? /^(\d{1,2}):(\d{2})/.exec(v) : null;
+  if (!m) return '—';
+  const h = Number(m[1]);
+  return `${((h + 11) % 12) + 1}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+}
+
+/** Current time in Asia/Kolkata as HH:MM (for <input type="time"> defaults). */
+export function nowTimeIST(now = new Date()): string {
+  const p = Object.fromEntries(
+    new Intl.DateTimeFormat('en-GB', { timeZone: TIME_ZONE, hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(now).map((x) => [x.type, x.value]),
+  );
+  return `${String(Number(p.hour) % 24).padStart(2, '0')}:${p.minute}`;
+}
+
 /** Today in Asia/Kolkata as YYYY-MM-DD (for <input type="date"> defaults). */
 export function todayIST(now = new Date()): string {
   const parts = Object.fromEntries(

@@ -3,11 +3,12 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { SpecDetails } from '@/components/SpecPicker';
-import { Badge, Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, type Tone } from '@/components/ui';
+import { Badge, Card, LinkButton, Notice, PageHeader, SectionTitle, Stat, buttonClass, type Tone } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
+import { listBeamEvents } from '@/lib/data/beams';
 import { getLoomStatus, listPreparedBeams, listTakeoffs } from '@/lib/data/looms';
-import { listFabricQualities, listSpecifications } from '@/lib/data/masters';
-import { currentShift, fmtDateTime, fmtKg, fmtM, todayIST } from '@/lib/format';
+import { listFabricQualities } from '@/lib/data/masters';
+import { currentShift, fmtDate, fmtDateTime, fmtKg, fmtM, nowTimeIST, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { LoomStatus } from '@/lib/types';
@@ -28,14 +29,13 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
   const loom = await getLoomStatus(db, id).catch(() => null);
   if (!loom) notFound();
   const mayWork = !user.factory_id || user.factory_id === loom.factory_id;
-  const [takeoffs, prepared, qualities, specs] = await Promise.all([
-    listTakeoffs(db, { loomId: id, limit: 20 }),
-    loom.status === 'idle' && mayWork ? listPreparedBeams(db) : Promise.resolve([]),
-    loom.beam_id && mayWork ? listFabricQualities(db, { activeOnly: true }) : Promise.resolve([]),
-    loom.beam_id && mayWork ? listSpecifications(db, { qualityId: loom.fabric_quality_id ?? undefined }) : Promise.resolve([]),
+  const [takeoffs, prepared, qualities, events] = await Promise.all([
+    listTakeoffs(db, { loomId: id, limit: 30 }),
+    loom.status !== 'maintenance' && mayWork ? listPreparedBeams(db) : Promise.resolve([]),
+    loom.beam_id && mayWork ? listFabricQualities(db) : Promise.resolve([]),
+    listBeamEvents(db, { loomId: id, limit: 20 }),
   ]);
   const here = `/looms/${id}`;
-  const beamTakeoffs = takeoffs.filter((t) => t.beam_id === loom.beam_id).length;
 
   return (
     <>
@@ -65,9 +65,12 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-muted">{L.loom.currentBeam}</div>
-                <Link href={`/beams/${loom.beam_id}`} className="text-xl font-bold text-brand">{loom.beam_no}</Link>
-                <div className="text-sm">{loom.fabric_quality_name} · <b data-testid="loom-spec">{loom.spec_code}</b></div>
-                <div className="text-xs text-muted">{L.loom.loadedAt} {fmtDateTime(loom.loaded_at)}</div>
+                <Link href={`/beams/${loom.beam_id}`} className="text-xl font-bold text-brand" data-testid="loom-beam">{loom.beam_no}</Link>
+                <div className="text-sm">{loom.fabric_quality_name ?? L.beam.noQuality} · <b data-testid="loom-spec">{loom.spec_code ?? L.beam.noSpec}</b></div>
+                <div className="text-xs text-muted">
+                  {L.loom.loadedAt} {fmtDateTime(loom.loaded_at)}
+                  {loom.expected_finish_date && ` · ${L.card.finishExpected} ${fmtDate(loom.expected_finish_date)}`}
+                </div>
               </div>
             </div>
             <div className="mt-3"><SpecDetails spec={{ spec_code: loom.spec_code ?? '', reed: loom.reed, ends_per_inch: loom.ends_per_inch, warp_yarn_quality_name: loom.warp_yarn_quality_name, weft_yarn_quality_name: loom.weft_yarn_quality_name }} /></div>
@@ -83,7 +86,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
             <>
               <SectionTitle>{L.takeoff.title}</SectionTitle>
               <Card>
-                <ProductionForm looms={[loom]} qualities={qualities} specs={specs} fixedLoomId={loom.loom_id} today={todayIST()} shiftNow={currentShift()} returnTo={here} />
+                <ProductionForm looms={[loom]} qualities={qualities} fixedLoomId={loom.loom_id} today={todayIST()} shiftNow={currentShift()} nowTime={nowTimeIST()} returnTo={here} />
               </Card>
               <div className="mt-4 grid gap-2 sm:grid-cols-2">
                 <form action={finishBeamAction}>
@@ -93,15 +96,18 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
                     {L.loom.finish}
                   </ConfirmButton>
                 </form>
-                {canEdit(user) && beamTakeoffs === 0 && (
-                  <form action={unloadBeamAction}>
+                {canEdit(user) && <form action={unloadBeamAction}>
                     <input type="hidden" name="beam_id" value={loom.beam_id} />
                     <input type="hidden" name="return" value={here} />
                     <ConfirmButton message={L.loom.unloadConfirm} className={`${buttonClass.danger} w-full`}>
                       {L.loom.unload}
                     </ConfirmButton>
-                  </form>
-                )}
+                  </form>}
+              </div>
+              <SectionTitle>{L.card.replaceTitle}</SectionTitle>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <LinkButton href={`/beams/new?loom=${loom.loom_id}`} variant="secondary">{L.card.newTitle}</LinkButton>
+                {prepared.length > 0 && <LinkButton href={`/looms/load?loom=${loom.loom_id}`} variant="secondary">{L.card.loadExisting}</LinkButton>}
               </div>
             </>
           )}
@@ -110,16 +116,37 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
         <>
           <p className="mb-3 text-muted">{L.loom.noBeam}</p>
           {mayWork && loom.status === 'idle' && (
-            <Card>
-              <h2 className="mb-3 font-semibold">{L.loom.load}</h2>
-              <LoadBeamForm beams={prepared} looms={[]} fixedLoom={loom} />
-            </Card>
+            <>
+              <LinkButton href={`/beams/new?loom=${loom.loom_id}`} className="mb-3 w-full">{L.card.newTitle}</LinkButton>
+              {prepared.length > 0 && (
+                <Card>
+                  <h2 className="mb-3 font-semibold">{L.card.loadExisting}</h2>
+                  <LoadBeamForm beams={prepared} looms={[]} fixedLoom={loom} canUnload={canEdit(user)} />
+                </Card>
+              )}
+            </>
           )}
         </>
       )}
 
       <SectionTitle>{L.takeoff.recent}</SectionTitle>
       <TakeoffList rows={takeoffs} canDelete={canEdit(user)} returnTo={here} show="beam" />
+
+      <SectionTitle>{L.card.loomHistory}</SectionTitle>
+      {events.length === 0 ? (
+        <p className="text-sm text-muted">{L.card.noHistory}</p>
+      ) : (
+        <Card className="p-0">
+          <ol className="divide-y divide-line" aria-label={L.card.loomHistory}>
+            {events.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm" data-event={e.event}>
+                <span><b>{L.card.loomEvents[e.event]}</b> <Link href={`/beams/${e.beam_id}`} className="font-semibold text-brand">{e.beam_no}</Link></span>
+                <span className="tnum shrink-0 text-xs text-muted">{fmtDateTime(e.at)}</span>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
     </>
   );
 }

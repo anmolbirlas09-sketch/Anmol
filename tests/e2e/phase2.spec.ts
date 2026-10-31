@@ -70,19 +70,20 @@ test('data entry: yarn inward → beam → warp and weft consumption', async ({ 
 
   // --- Beam B-001 ---------------------------------------------------------
   await page.goto('/beams/new');
-  await page.getByLabel('Beam no').fill('b-001');
-  await page.getByLabel('Fabric quality', { exact: true }).selectOption({ label: 'Mono White' });
+  await page.waitForLoadState('networkidle');
+  await page.getByLabel('Beam number').fill('b-001');
+  await page.getByLabel('Fabric quality number').selectOption({ label: 'Mono White' });
   // its only specification is picked automatically and shown
   await expect(page.getByLabel('Specification', { exact: true }).locator('option:checked')).toContainText('MONOWHITE-S1');
   await expect(page.getByTestId('spec-details')).toContainText('Mono 0.25 White');
-  await page.getByLabel('Warp length (m)').fill('3000');
-  await expect(page.getByText('259.560 kg')).toBeVisible(); // live planned preview
+  await page.getByLabel('Counter meter (m)').fill('3000');
   await shot(page, '05-new-beam');
-  await page.getByRole('button', { name: 'New beam' }).click();
+  await page.getByRole('button', { name: 'Save beam card' }).click();
 
-  await expect(page).toHaveURL(/\/beams\/[0-9a-f-]+\?created=1/);
+  await expect(page).toHaveURL(/\/beams\/[0-9a-f-]+\?saved=1/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Beam B-001');
-  await expect(page.getByText('Beam B-001 created')).toBeVisible();
+  await expect(page.getByText('Beam card B-001 saved')).toBeVisible();
+  await expect(page.getByText('259.560')).toBeVisible(); // planned warp kg
 
   // --- Warp 400 + weft 300 from A-101 ------------------------------------
   await pick(page, 'Yarn lot', /A-101/);

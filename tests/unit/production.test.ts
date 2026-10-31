@@ -61,8 +61,13 @@ describe('production form validation', () => {
     expect(ok.data).toMatchObject({ meters: 680, wasted_meters: 33, roll_length_m: 100 });
     expect([ok.data!.gsm, ok.data!.width_m, ok.data!.warp_kg, ok.data!.weighed_kg, ok.data!.waste_kg]).toEqual([undefined, undefined, undefined, undefined, undefined]);
 
-    const missing = parseForm(productionSchema, fd({ loom_id: UUID, fabric_quality_id: UUID, fabric_specification_id: UUID, entry_date: '2026-10-31' })).error!;
-    expect(Object.keys(missing.fieldErrors!).sort()).toEqual(['meters', 'roll_length_m', 'wasted_meters']);
+    // Only the loom and either metres or a counter reading are needed; everything else is optional.
+    const missing = parseForm(productionSchema, fd({ loom_id: UUID, entry_date: '2026-10-31' })).error!;
+    expect(missing.fieldErrors).toEqual({ meters: 'Enter the production metres or the counter reading' });
+    const counterOnly = parseForm(productionSchema, fd({ loom_id: UUID, counter_reading: '1,172', production_time: '19:25' }));
+    expect(counterOnly.data).toMatchObject({ counter_reading: 1172, production_time: '19:25', counter_reset: false });
+    expect([counterOnly.data!.meters, counterOnly.data!.entry_date, counterOnly.data!.roll_length_m, counterOnly.data!.wasted_meters]).toEqual([undefined, undefined, undefined, undefined]);
+    expect(parseForm(productionSchema, fd({ loom_id: UUID, meters: '85', production_time: '25:10' })).error?.fieldErrors?.production_time).toBe('Enter a time like 17:10');
   });
 
   it('shift: day or night only, optional', () => {

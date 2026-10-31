@@ -83,26 +83,25 @@ test('owner creates Quality 101 with three specifications; reed and ends per inc
 test('a beam of S2 is woven and recorded against S2, with its reed, ends and yarns shown', async ({ page }) => {
   await signIn(page, 'entry76@test.local');
   await page.goto('/beams/new');
-  await page.getByLabel('Beam no').fill('q101-b2');
-  await page.getByLabel('Fabric quality', { exact: true }).selectOption({ label: 'Quality 101' });
+  await page.waitForLoadState('networkidle');
+  await page.getByLabel('Beam number').fill('q101-b2');
+  await page.getByLabel('Fabric quality number').selectOption({ label: 'Quality 101' });
   const specSelect = page.getByLabel('Specification', { exact: true });
   await specSelect.selectOption((await specSelect.locator('option', { hasText: 'QUALITY101-S2' }).getAttribute('value'))!);
   await expect(page.getByTestId('spec-details')).toContainText('52');
   await expect(page.getByTestId('spec-details')).toContainText('56');
-  await page.getByLabel('Warp length (m)').fill('2000');
-  await page.getByRole('button', { name: 'New beam' }).click();
+  await page.getByLabel('Counter meter (m)').fill('2000');
+  // load it on a loom from the same card
+  const loomSelect = page.getByLabel('Loom number');
+  await loomSelect.selectOption((await loomSelect.locator('option', { hasText: 'L76-30' }).getAttribute('value'))!);
+  await page.getByRole('button', { name: 'Save and load on loom' }).click();
   await expect(page.getByTestId('beam-spec')).toHaveText('QUALITY101-S2');
+  await expect(page.getByTestId('beam-loom')).toHaveText('On loom L76-30');
+  await page.getByRole('link', { name: 'Production', exact: true }).click();
 
-  await page.getByLabel('Free loom', { exact: true }).click();
-  await page.getByRole('combobox', { name: 'Search' }).fill('L76-30');
-  await page.getByRole('listbox').getByRole('option', { name: 'L76-30' }).click();
-  await page.getByRole('button', { name: 'Load on loom' }).click();
-  await expect(page.getByText('Beam Q101-B2 loaded on L76-30')).toBeVisible();
-
-  // Production entry on that loom: parent and specification pre-filled, details shown
-  await expect(page.getByLabel('Fabric quality', { exact: true }).locator('option:checked')).toHaveText('Quality 101');
-  await expect(page.getByLabel('Specification', { exact: true }).locator('option:checked')).toContainText('QUALITY101-S2');
-  const d = page.getByTestId('spec-details').first();
+  // Production entry on that loom: parent and specification come from the beam, details shown
+  await expect(page.getByTestId('takeoff-beam')).toContainText('Beam Q101-B2 · Quality 101 · QUALITY101-S2');
+  const d = page.getByTestId('takeoff-beam').getByTestId('spec-details');
   for (const t of ['52', '56', 'PP 0.17', 'PT 0.125']) await expect(d).toContainText(t);
   await fillProduction(page, { meters: '300', wasted: '12', roll: '100' });
   await shot(page, '29-production-spec');

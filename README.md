@@ -23,18 +23,18 @@ A live, shared inventory system for a weaving unit in Surat with two factories (
 | `/yarn` | Lots with live balance; stock-by-quality cards (tap to filter), factory toggle, search, "show used-up lots" |
 | `/yarn/new` | Yarn inward: lot no, quality, kg, factory, supplier, challan, bags/cones, rate. "Save + new" for several lots |
 | `/yarn/[id]` | One lot: received / warp / weft / balance and every movement with a running balance |
-| `/beams` | Beams with status filter, search, warp/weft kg (red when over the variance limit) |
-| `/beams/new` | New beam with a live planned warp/weft preview |
-| `/beams/[id]` | Planned vs actual, load on loom / finish, yield (grey m & kg, wastage kg & %, m/kg), take-offs, add warp/weft lines lot by lot (live available kg) |
+| `/beams` | Beams with status filter, search by beam no / card no / quality / Spec ID / loom, quality and loom filters, warp/weft kg (red when over the variance limit) |
+| `/beams/new` | **Load new beam** — the digital beam card: 20 fields in 7 groups (identification, quality & specification, warp & weft, measurements & weight, weaving, dates, loom). Every field optional; pick a loom to load it straight away (a busy loom asks whether its running beam is finished or taken off) |
+| `/beams/[id]` | Beam card (all 20 fields, how many are still missing), edit / complete it (`/beams/[id]/edit`), status with load / unload / finish, loading & unloading history, planned vs actual, yield, production history with times and counter readings, add warp/weft lines lot by lot |
 | `/masters/...` | Yarn qualities, suppliers, and **fabric qualities with their specifications**: each parent quality lists its specifications (Specification ID, Reed, Total Ends per Inch, warp and weft yarn); add, edit, deactivate; search by quality name or Specification ID |
 | `/looms` | All 68 looms as tiles by factory (green = running, with beam and meters so far); factory toggle |
-| `/looms/load` | Load on loom: pick a prepared beam and a free loom (beam's factory listed first) |
-| `/looms/[id]` | One loom: current beam, take-off form, "Mark beam finished", "Unload" for supervisors (only before any fabric), loom history; load form when idle |
-| `/takeoff` | **Production entry (metre-first):** 1 loom + fabric quality → 2 total metres → 3 roll length → 4 "How many metres of fabric were wasted?" → 5 net usable m and wastage % shown live, with the roll split → 6 optional weights (GSM + width → *estimated* kg, *actual* weighed kg, warp/weft kg; then measured waste kg **or** wastage %) → 7 save (rolls created, stock updated) |
+| `/looms/load` | Load a saved beam on a loom (beam's factory listed first); a busy loom asks what happens to its running beam |
+| `/looms/[id]` | One loom: current beam and its card details, production form, "Mark beam finished", "Unload" (owner / supervisor), *Load new beam* / replace, recent production, beams-on-this-loom history |
+| `/takeoff` | **Production entry (metre-first, time-stamped):** loom → its active beam's quality, specification, reed, ends and yarns shown automatically → date + actual time (prefilled, editable, optional) → counter reading (metres = current − previous reading) and/or production metres → optional roll length and wasted metres. Older description: 1 loom + fabric quality → 2 total metres → 3 roll length → 4 "How many metres of fabric were wasted?" → 5 net usable m and wastage % shown live, with the roll split → 6 optional weights (GSM + width → *estimated* kg, *actual* weighed kg, warp/weft kg; then measured waste kg **or** wastage %) → 7 save (rolls created, stock updated) |
 | `/grey` | Grey stock (m and kg) by fabric quality with the factory split; factory toggle; Dispatch button |
 | `/dispatch` | Grey dispatch: factory → quality (shows stock there), meters + kg, party, challan, rolls; blocks more than in stock; recent dispatches |
 | `/grey/adjust`, lot page | Signed stock adjustments with a reason (supervisor / owner) |
-| `/reports` | Date range + factory (+ daily/monthly) filters; six reports, each on screen and as **Excel** and **PDF** |
+| `/reports` | Date range + factory (+ daily/monthly, time-of-day, shift, group-by) filters; daily, shift-wise and the other reports, each on screen and as **Excel** and **PDF** |
 | `/import` | Opening yarn / grey stock from .xlsx: download template → check file (problems listed by row) → import all-or-nothing |
 | `/settings` | Owner only: users (activate, role, factory), looms (rename, maintenance, deactivate, add), factories, variance threshold |
 | `/more` | Dispatch, Reports, Take-off, Import, Masters, Settings (by role) |
@@ -65,6 +65,7 @@ supabase/
     …0010_metre_first_production.sql  metre-first production: wasted/net metres, rolls, optional weights, KG wastage, record_production()
     …0011_day_night_shifts.sql        shifts: day (8 am – 8 pm) and night (8 pm – 8 am)
     …0012_fabric_specifications.sql   parent qualities with multiple specifications; stock per specification
+    …0013_beam_cards_timed_production.sql   digital beam card (all fields optional), loading history, production time + counter readings
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -113,7 +114,9 @@ DECISIONS.md                  assumptions and design choices
 | Yarn stock by quality | Opening, inward, warp, weft, adjustments, closing kg per yarn quality |
 | Yarn stock ledger by lot | The same per lot |
 | Specification and quality summary | Per specification: production, wastage, rolls, finished stock, yarn issued and recorded, KG wastage — with a totals row per parent quality (or parents only) |
-| Production register | Every production entry: total / wasted / net metres, wastage %, rolls, GSM, width, estimated and weighed kg, warp / weft / total yarn kg, waste kg (actual or estimated) |
+| Daily production | Per day by all looms (every loom listed for a single day), or by quality, specification or beam |
+| Shift-wise production | Day / night / no-shift metres and entries per loom, with shift totals |
+| Production register | Every production entry with date, actual time, counter reading, previous reading and metres source: total / wasted / net metres, wastage %, rolls, GSM, width, estimated and weighed kg, warp / weft / total yarn kg, waste kg (actual or estimated) |
 | Loom-wise production | The same totals per loom and fabric quality, daily or monthly, per factory |
 | Beam register | Beam → loom → yarn issued → production metres and wastage → weights where recorded |
 | Roll tracking | Every roll: roll no, date, loom, beam, quality, metres |
@@ -205,7 +208,7 @@ Database tests cover: the full §8 acceptance test (run as an authenticated owne
 
 ## Deploy
 
-1. `supabase db push` (applies all migrations, 0001–0012).
+1. `supabase db push` (applies all migrations, 0001–0013).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
 3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
 4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

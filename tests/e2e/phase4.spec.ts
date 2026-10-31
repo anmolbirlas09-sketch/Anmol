@@ -54,7 +54,7 @@ test('the dashboard updates live while someone else loads a beam and records a t
   await floor.getByLabel('Beam', { exact: true }).click();
   await floor.getByRole('combobox', { name: 'Search' }).fill('D-001');
   await floor.getByRole('listbox').getByRole('option', { name: /D-001/ }).click();
-  await floor.getByLabel('Free loom', { exact: true }).click();
+  await floor.getByLabel('Loom', { exact: true }).click();
   await floor.getByRole('combobox', { name: 'Search' }).fill('L76-20');
   await floor.getByRole('listbox').getByRole('option', { name: 'L76-20' }).click();
   await floor.getByRole('button', { name: 'Load on loom' }).click();

@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import { Card, Notice, PageHeader, SectionTitle } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { listLoomStatus, listTakeoffs } from '@/lib/data/looms';
-import { listFabricQualities, listSpecifications } from '@/lib/data/masters';
-import { currentShift, todayIST } from '@/lib/format';
+import { listFabricQualities } from '@/lib/data/masters';
+import { currentShift, nowTimeIST, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import { ProductionForm } from '../looms/ProductionForm';
@@ -16,11 +16,10 @@ export default async function TakeoffPage({ searchParams }: PageProps<'/takeoff'
   const { loom, error } = await searchParams;
   const db = await createClient();
   const factoryId = user.factory_id ?? undefined;
-  const [looms, recent, qualities, specs] = await Promise.all([
+  const [looms, recent, qualities] = await Promise.all([
     listLoomStatus(db, { factoryId }),
     listTakeoffs(db, { factoryId, limit: 10 }),
-    listFabricQualities(db, { activeOnly: true }),
-    listSpecifications(db),
+    listFabricQualities(db),
   ]);
 
   return (
@@ -32,10 +31,9 @@ export default async function TakeoffPage({ searchParams }: PageProps<'/takeoff'
       <Card>
         <ProductionForm
           qualities={qualities}
-          specs={specs}
           looms={looms.filter((l) => l.status === 'running')}
           defaultLoomId={typeof loom === 'string' ? loom : undefined}
-          today={todayIST()} shiftNow={currentShift()}
+          today={todayIST()} shiftNow={currentShift()} nowTime={nowTimeIST()}
         />
       </Card>
       <SectionTitle>{L.takeoff.recent}</SectionTitle>

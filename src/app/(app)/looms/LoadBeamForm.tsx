@@ -12,19 +12,24 @@ import { loadBeamAction } from './actions';
 
 interface Props {
   beams: BeamSummary[];
-  /** Free looms the user may load. */
+  /** Looms the user may load; a busy one asks what happens to its running beam. */
   looms: LoomStatusRow[];
   fixedBeam?: BeamSummary;
   fixedLoom?: LoomStatusRow;
   defaultBeamId?: string;
   defaultLoomId?: string;
+  /** Owner / supervisor: may take the running beam off unfinished. */
+  canUnload?: boolean;
 }
 
-/** Pick a prepared beam and a free loom. Either side can be fixed by the page. */
-export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId, defaultLoomId }: Props) {
+/** Pick a beam that is not on a loom and a loom. Either side can be fixed by the page. */
+export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId, defaultLoomId, canUnload }: Props) {
   const [state, action] = useActionState(loadBeamAction, {} as FormState);
   const [beamId, setBeamId] = useState(fixedBeam?.beam_id ?? state.values?.beam_id ?? defaultBeamId ?? '');
+  const [loomId, setLoomId] = useState(fixedLoom?.loom_id ?? state.values?.loom_id ?? defaultLoomId ?? '');
   const beam = fixedBeam ?? beams.find((b) => b.beam_id === beamId);
+  const loom = fixedLoom ?? looms.find((l) => l.loom_id === loomId);
+  const running = loom?.beam_id ? loom.beam_no : null;
 
   // Looms at the beam's factory first, then the rest.
   const homeFactory = beam?.factory_code;
@@ -33,14 +38,14 @@ export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId
     .map((l) => ({
       value: l.loom_id,
       label: l.machine_no,
-      detail: l.assigned_spec_code ? `${l.factory_code} · ${l.assigned_spec_code}` : l.factory_code,
+      detail: [l.factory_code, l.assigned_spec_code, l.beam_id ? L.card.loomBusy(l.beam_no ?? '') : L.card.loomFree].filter(Boolean).join(' · '),
       group: homeFactory && l.factory_code !== homeFactory ? L.loom.otherFactory : L.loom.sameFactoryFirst(l.factory_code),
     }));
   const beamOptions: ComboOption[] = beams.map((b) => ({
     value: b.beam_id,
-    label: `${b.beam_no} · ${b.fabric_quality_name} · ${b.spec_code}`,
-    detail: b.factory_code,
-    keywords: fmtDate(b.created_date),
+    label: [b.beam_no, b.fabric_quality_name, b.spec_code].filter(Boolean).join(' · '),
+    detail: b.factory_code ?? undefined,
+    keywords: `${fmtDate(b.created_date)} CARD-${b.card_no}`,
   }));
 
   if (!fixedBeam && beams.length === 0) return <Notice tone="warn">{L.loom.noPrepared}</Notice>;
@@ -69,11 +74,24 @@ export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId
             key={homeFactory ?? 'none'}
             id="loom_id"
             name="loom_id"
-            defaultValue={state.values?.loom_id ?? defaultLoomId}
+            value={loomId}
+            onChange={setLoomId}
             options={loomOptions}
             invalid={Boolean(state.fieldErrors?.loom_id)}
           />
         </Field>
+      )}
+      {running && loom && (
+        <div role="radiogroup" aria-label={L.card.replaceQ(loom.machine_no, running)} className="space-y-2 rounded-lg border border-warn bg-warn-soft p-3 text-sm">
+          <p className="font-semibold">{L.card.replaceQ(loom.machine_no, running)}</p>
+          {(canUnload ? (['finish', 'unload'] as const) : (['finish'] as const)).map((r) => (
+            <label key={r} className="flex min-h-10 items-start gap-2">
+              <input type="radio" name="replace" value={r} defaultChecked={state.values?.replace === r} className="mt-1 size-4 accent-brand" />
+              <span>{r === 'finish' ? L.card.replaceFinish(running) : L.card.replaceUnload(running)}</span>
+            </label>
+          ))}
+          {state.fieldErrors?.replace && <p className="font-medium text-bad">{state.fieldErrors.replace}</p>}
+        </div>
       )}
       <SubmitButton pendingText={L.loom.loading} className="w-full">
         {L.loom.load}

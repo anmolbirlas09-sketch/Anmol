@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { beamSchema, consumptionSchema, parseForm, supplierSchema, yarnLotSchema } from '@/lib/validation';
+import { beamCardSchema, consumptionSchema, parseForm, supplierSchema, yarnLotSchema } from '@/lib/validation';
 
 const fd = (o: Record<string, string>) => {
   const f = new FormData();
@@ -33,12 +33,31 @@ describe('yarn lot form', () => {
 });
 
 describe('beam and consumption forms', () => {
-  it('meters allow 2 decimals', () => {
-    const ok = parseForm(beamSchema, fd({ beam_no: 'b-001', fabric_quality_id: UUID, fabric_specification_id: UUID, factory_id: UUID, warp_length_m: '3000.25', created_date: '2026-10-29' }));
+  it('beam card: counter meter allows 2 decimals', () => {
+    const ok = parseForm(beamCardSchema, fd({ beam_no: 'b-001', fabric_quality_id: UUID, fabric_specification_id: UUID, factory_id: UUID, warp_length_m: '3000.25', created_date: '2026-10-29' }));
     expect(ok.data?.beam_no).toBe('B-001');
     expect(ok.data?.warp_length_m).toBe(3000.25);
-    const bad = parseForm(beamSchema, fd({ beam_no: 'b', fabric_quality_id: UUID, fabric_specification_id: UUID, factory_id: UUID, warp_length_m: '1.234', created_date: '2026-10-29' }));
+    const bad = parseForm(beamCardSchema, fd({ beam_no: 'b', warp_length_m: '1.234' }));
     expect(bad.error?.fieldErrors?.warp_length_m).toBe('Up to 2 decimals');
+  });
+
+  it('beam card: every field is optional — an empty card is valid and stays empty', () => {
+    const r = parseForm(beamCardSchema, fd({ beam_no: '', created_date: '', fabric_quality_id: '', fabric_specification_id: '', warp_length_m: '', loom_id: '', weave: '  ' }));
+    expect(r.error).toBeUndefined();
+    expect(Object.values(r.data!).filter((v) => v !== undefined)).toEqual([]);
+  });
+
+  it('beam card: all 20 fields parse; a new specification needs its quality', () => {
+    const r = parseForm(beamCardSchema, fd({
+      beam_no: 'bc-9', created_date: '2026-10-25', fabric_quality_id: UUID, fabric_specification_id: 'new', warp_yarn_quality_id: UUID, reed: '48',
+      spec_epi: '52', total_ends: '4200', reed_space_in: '72', weft_yarn_quality_id: UUID, picks_on_loom: '14', warp_length_m: '3000', rolling_meter: '2950',
+      warp_weight_kg: '210.5', gross_weight_kg: '260', finished_weight_kg: '245.25', weft_weight_kg: '180', weave: 'Plain', getting_date: '2026-10-26',
+      expected_finish_date: '2026-11-10', actual_finish_date: '', loom_id: UUID,
+    }));
+    expect(r.error).toBeUndefined();
+    expect(r.data).toMatchObject({ beam_no: 'BC-9', reed: 48, spec_epi: 52, total_ends: 4200, gross_weight_kg: 260, weave: 'Plain', expected_finish_date: '2026-11-10' });
+    expect(parseForm(beamCardSchema, fd({ fabric_specification_id: 'new' })).error?.fieldErrors?.fabric_quality_id).toBeTruthy();
+    expect(parseForm(beamCardSchema, fd({ total_ends: '42.5' })).error?.fieldErrors?.total_ends).toBe('Enter a number');
   });
 
   it('usage must be warp or weft', () => {

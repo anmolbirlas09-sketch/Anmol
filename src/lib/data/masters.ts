@@ -71,21 +71,22 @@ export async function getSpecification(db: Db, id: string): Promise<FabricSpecif
   return unwrap(await db.from('v_fabric_specifications').select('*').eq('id', id).maybeSingle());
 }
 
+/** Everything but the parent is optional (blank → NULL, can be filled in later). */
 export interface SpecificationInput {
   fabric_quality_id: string;
-  reed: number;
-  ends_per_inch: number;
-  warp_yarn_quality_id: string;
-  weft_yarn_quality_id: string;
+  reed?: number | null;
+  ends_per_inch?: number | null;
+  warp_yarn_quality_id?: string | null;
+  weft_yarn_quality_id?: string | null;
   active: boolean;
-  notes?: string;
+  notes?: string | null;
 }
 
 /** Create (no id: the database assigns the Specification ID) or edit a specification; returns its id. */
 export async function saveSpecification(db: Db, v: SpecificationInput, id?: string): Promise<string> {
   const row = {
-    reed: v.reed, ends_per_inch: v.ends_per_inch, warp_yarn_quality_id: v.warp_yarn_quality_id,
-    weft_yarn_quality_id: v.weft_yarn_quality_id, active: v.active, notes: v.notes ?? null,
+    reed: v.reed ?? null, ends_per_inch: v.ends_per_inch ?? null, warp_yarn_quality_id: v.warp_yarn_quality_id ?? null,
+    weft_yarn_quality_id: v.weft_yarn_quality_id ?? null, active: v.active, notes: v.notes ?? null,
   };
   if (id) {
     const rows = unwrap(await db.from('fabric_specifications').update(row).eq('id', id).select('id'));

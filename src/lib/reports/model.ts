@@ -1,10 +1,16 @@
 import { fmtDate, fmtKg, fmtM, fmtPct } from '../format';
 import { L } from '../labels';
 
-export const REPORT_KINDS = ['specifications', 'production', 'loom-production', 'beam-register', 'rolls', 'yarn-quality', 'yarn-lot', 'grey-summary', 'variance'] as const;
+export const REPORT_KINDS = ['daily', 'shift', 'specifications', 'production', 'loom-production', 'beam-register', 'rolls', 'yarn-quality', 'yarn-lot', 'grey-summary', 'variance'] as const;
 
 /** Reports that can be narrowed to a loom, fabric quality or beam. */
-export const FILTERABLE: readonly ReportKind[] = ['specifications', 'production', 'loom-production', 'beam-register', 'rolls', 'variance'];
+export const FILTERABLE: readonly ReportKind[] = ['daily', 'shift', 'specifications', 'production', 'loom-production', 'beam-register', 'rolls', 'variance'];
+
+/** Reports built from time-stamped production entries: also filter by time of day and shift. */
+export const TIMED: readonly ReportKind[] = ['daily', 'shift', 'production', 'loom-production'];
+
+export const DAILY_GROUPS = ['loom', 'quality', 'spec', 'beam'] as const;
+export type DailyGroup = (typeof DAILY_GROUPS)[number];
 export type ReportKind = (typeof REPORT_KINDS)[number];
 export const isReportKind = (k: string): k is ReportKind => (REPORT_KINDS as readonly string[]).includes(k);
 
@@ -36,6 +42,12 @@ export interface ReportParams {
   beamNo?: string;
   /** Specification report: list each specification under its parent (default) or parents only. */
   showSpecs?: boolean;
+  /** Time-of-day window HH:MM (on the actual production time). */
+  timeFrom?: string;
+  timeTo?: string;
+  shift?: 'day' | 'night';
+  /** Daily report: one row per day per … */
+  group?: DailyGroup;
 }
 
 export interface ReportTable {
@@ -107,7 +119,8 @@ export const weightedPct = (partKey: string, wholeKey: string) => (rows: Row[]):
 };
 
 export function subtitleFor(p: ReportParams): string {
-  const extra = [p.loomNo, p.fabricQualityName, p.specCode, p.beamNo && `${L.reports.beamNo} ${p.beamNo}`].filter(Boolean);
+  const extra = [p.loomNo, p.fabricQualityName, p.specCode, p.beamNo && `${L.reports.beamNo} ${p.beamNo}`,
+    (p.timeFrom || p.timeTo) && `${p.timeFrom ?? '00:00'}–${p.timeTo ?? '23:59'}`, p.shift && L.takeoff.shiftShort[p.shift]].filter(Boolean);
   return [`${fmtDate(p.from)} to ${fmtDate(p.to)}`, p.factoryCode ?? L.app.allFactories, ...extra].join(' · ');
 }
 

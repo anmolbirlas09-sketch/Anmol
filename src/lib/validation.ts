@@ -61,16 +61,61 @@ export const yarnLotSchema = z.object({
 });
 export type YarnLotInput = z.infer<typeof yarnLotSchema>;
 
-export const beamSchema = z.object({
-  beam_no: requiredText(50).transform((s) => s.toUpperCase()),
-  fabric_quality_id: uuid(),
-  fabric_specification_id: uuid(),
-  factory_id: uuid(),
-  warp_length_m: meters(),
-  created_date: isoDate(),
-  notes: optionalText(),
-});
-export type BeamInput = z.infer<typeof beamSchema>;
+const optionalDate = () => z.preprocess(blankToUndefined, isoDate().optional());
+const optionalPositiveNum = (opts: { int?: boolean; dp?: number }) =>
+  optionalNumber(opts).refine((n) => n === undefined || n > 0, L.errors.positive);
+
+/**
+ * Digital beam card: all 20 card fields are optional (blank → NULL). Only the
+ * system decides ids; nothing is filled in with a made-up value.
+ * fabric_specification_id may be 'new' (create one from spec_reed / spec_epi /
+ * warp / weft) or blank.
+ */
+export const beamCardSchema = z
+  .object({
+    beam_no: z.preprocess(blankToUndefined, z.string().trim().max(50).transform((s) => s.toUpperCase()).optional()),
+    created_date: optionalDate(),
+    fabric_quality_id: optionalUuid(),
+    fabric_specification_id: z.preprocess(blankToUndefined, z.union([z.literal('new'), z.string().uuid()]).optional()),
+    warp_yarn_quality_id: optionalUuid(),
+    weft_yarn_quality_id: optionalUuid(),
+    reed: optionalPositiveNum({ dp: 2 }),
+    spec_epi: optionalPositiveNum({ dp: 2 }),
+    total_ends: optionalPositiveNum({ int: true }),
+    reed_space_in: optionalPositiveNum({ dp: 2 }),
+    picks_on_loom: optionalPositiveNum({ dp: 2 }),
+    warp_length_m: optionalPositiveNum({ dp: 2 }),
+    rolling_meter: optionalPositiveNum({ dp: 2 }),
+    warp_weight_kg: optionalPositiveNum({ dp: 3 }),
+    gross_weight_kg: optionalPositiveNum({ dp: 3 }),
+    finished_weight_kg: optionalPositiveNum({ dp: 3 }),
+    weft_weight_kg: optionalPositiveNum({ dp: 3 }),
+    weave: z.preprocess(blankToUndefined, z.string().trim().max(100).optional()),
+    getting_date: optionalDate(),
+    expected_finish_date: optionalDate(),
+    actual_finish_date: optionalDate(),
+    factory_id: optionalUuid(),
+    loom_id: optionalUuid(),
+    replace: z.preprocess(blankToUndefined, z.enum(['finish', 'unload']).optional()),
+    notes: optionalText(),
+  })
+  .superRefine((v, ctx) => {
+    if (v.fabric_specification_id === 'new' && !v.fabric_quality_id) {
+      ctx.addIssue({ code: 'custom', path: ['fabric_quality_id'], message: L.spec.pickFirstQuality });
+    }
+  });
+export type BeamCardInput = z.infer<typeof beamCardSchema>;
+
+/** Columns of the beams table a card form writes. */
+export const BEAM_CARD_COLUMNS = [
+  'beam_no', 'created_date', 'fabric_quality_id', 'fabric_specification_id', 'warp_yarn_quality_id', 'weft_yarn_quality_id', 'reed',
+  'total_ends', 'reed_space_in', 'picks_on_loom', 'warp_length_m', 'rolling_meter', 'warp_weight_kg', 'gross_weight_kg',
+  'finished_weight_kg', 'weft_weight_kg', 'weave', 'getting_date', 'expected_finish_date', 'actual_finish_date', 'factory_id', 'notes',
+] as const;
+export type BeamRow = { [K in (typeof BEAM_CARD_COLUMNS)[number]]?: string | number | null };
+
+/** Older, shorter beam input (imports, tests): a subset of the card. */
+export type BeamInput = BeamRow;
 
 export const consumptionSchema = z.object({
   beam_id: uuid(),
@@ -87,6 +132,7 @@ export const SHIFTS = ['day', 'night'] as const;
 export const loadBeamSchema = z.object({
   beam_id: uuid(),
   loom_id: uuid(),
+  replace: z.preprocess(blankToUndefined, z.enum(['finish', 'unload']).optional()),
 });
 
 export const takeoffSchema = z.object({
@@ -116,18 +162,22 @@ function quantityOrZero(dp: number) {
 const optionalPositive = (dp: number) => optionalNumber({ dp }).refine((n) => n === undefined || n > 0, L.errors.positive);
 
 /**
- * Metre-first production entry. Metres, wasted metres and roll length are
- * required; every weight is optional and stays undefined (NULL) when blank.
+ * Metre-first production entry. Every field the staff type is optional, but an
+ * entry must carry production metres or a counter reading (the database works
+ * the metres out from the loom's previous reading). Weights stay NULL when blank.
  */
 export const productionSchema = z
   .object({
     loom_id: uuid(),
-    fabric_quality_id: uuid(),
-    fabric_specification_id: uuid(),
-    meters: meters(),
-    wasted_meters: quantityOrZero(2),
-    roll_length_m: meters(),
-    entry_date: isoDate(),
+    fabric_quality_id: optionalUuid(),
+    fabric_specification_id: optionalUuid(),
+    meters: optionalPositive(2),
+    wasted_meters: optionalNumber({ dp: 2 }),
+    roll_length_m: optionalPositive(2),
+    entry_date: optionalDate(),
+    production_time: z.preprocess(blankToUndefined, z.string().regex(/^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/, L.errors.time).optional()),
+    counter_reading: optionalNumber({ dp: 2 }),
+    counter_reset: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
     shift: z.preprocess(blankToUndefined, z.enum(SHIFTS).optional()),
     gsm: optionalPositive(2),
     width_m: optionalPositive(3),
@@ -141,11 +191,14 @@ export const productionSchema = z
     client_ref: optionalUuid(),
   })
   .superRefine((v, ctx) => {
-    if (v.wasted_meters > v.meters) {
+    if (v.meters === undefined && v.counter_reading === undefined) {
+      ctx.addIssue({ code: 'custom', path: ['meters'], message: L.production.metersOrCounter });
+    }
+    if (v.wasted_meters !== undefined && v.meters !== undefined && v.wasted_meters > v.meters) {
       ctx.addIssue({ code: 'custom', path: ['wasted_meters'], message: L.production.wastedTooMuch });
     }
-    const net = v.meters - Math.min(v.wasted_meters, v.meters);
-    if (net > 0 && Math.ceil(net / v.roll_length_m) > 500) {
+    const net = v.meters !== undefined ? v.meters - Math.min(v.wasted_meters ?? 0, v.meters) : 0;
+    if (net > 0 && v.roll_length_m !== undefined && Math.ceil(net / v.roll_length_m) > 500) {
       ctx.addIssue({ code: 'custom', path: ['roll_length_m'], message: L.production.tooManyRolls });
     }
     if (v.waste_kg !== undefined && v.waste_pct !== undefined) {
@@ -250,24 +303,10 @@ export const settingsSchema = z.object({
  */
 export const specificationSchema = z.object({
   fabric_quality_id: uuid(),
-  reed: z
-    .string({ error: L.app.required })
-    .trim()
-    .min(1, L.app.required)
-    .refine((s) => /^\d*\.?\d+$/.test(s), L.errors.number)
-    .refine((s) => decimals(s) <= 2, L.errors.maxDecimals(2))
-    .transform(Number)
-    .refine((n) => n > 0, L.errors.positive),
-  ends_per_inch: z
-    .string({ error: L.app.required })
-    .trim()
-    .min(1, L.app.required)
-    .refine((s) => /^\d*\.?\d+$/.test(s), L.errors.number)
-    .refine((s) => decimals(s) <= 2, L.errors.maxDecimals(2))
-    .transform(Number)
-    .refine((n) => n > 0, L.errors.positive),
-  warp_yarn_quality_id: uuid(),
-  weft_yarn_quality_id: uuid(),
+  reed: optionalPositiveNum({ dp: 2 }),
+  ends_per_inch: optionalPositiveNum({ dp: 2 }),
+  warp_yarn_quality_id: optionalUuid(),
+  weft_yarn_quality_id: optionalUuid(),
   notes: optionalText(),
   active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),
 });

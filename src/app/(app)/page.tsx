@@ -94,9 +94,9 @@ export default async function DashboardPage({ searchParams }: PageProps<'/'>) {
                 <tr><td colSpan={3} className="px-4 py-3 text-muted">{L.dashboard.noGrey}</td></tr>
               )}
               {d.grey.flatMap((g) => [
-                <tr key={g.fabric_quality_id}>
+                <tr key={g.fabric_quality_id ?? 'unset'}>
                   <th scope="row" className="px-4 py-2.5 text-left font-semibold">
-                    {g.fabric_quality_name}
+                    {g.fabric_quality_name ?? L.grey.qualityNotSet}
                     <span className="ml-1 text-xs font-normal text-muted">({g.specs.length})</span>
                   </th>
                   <td className="px-2 py-2.5 text-right">{fmtM(g.stock_m)}</td>
@@ -104,8 +104,8 @@ export default async function DashboardPage({ searchParams }: PageProps<'/'>) {
                 </tr>,
                 ...(showSpecs
                   ? g.specs.map((sp) => (
-                      <tr key={sp.fabric_specification_id} className="bg-sunken/60 text-xs" data-spec={sp.spec_code}>
-                        <th scope="row" className="py-2 pl-8 pr-4 text-left font-normal">↳ {sp.spec_code}</th>
+                      <tr key={sp.fabric_specification_id ?? 'unset'} className="bg-sunken/60 text-xs" data-spec={sp.spec_code ?? ''}>
+                        <th scope="row" className="py-2 pl-8 pr-4 text-left font-normal">↳ {sp.spec_code ?? L.beam.noSpec}</th>
                         <td className="px-2 py-2 text-right">{fmtM(sp.stock_m)}</td>
                         <td className="px-4 py-2 text-right">{fmtKg(sp.stock_kg)}</td>
                       </tr>

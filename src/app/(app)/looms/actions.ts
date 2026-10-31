@@ -19,7 +19,8 @@ export async function loadBeamAction(_: FormState, form: FormData): Promise<Form
   const parsed = parseForm(loadBeamSchema, form);
   if (parsed.error) return parsed.error;
   try {
-    await loadBeam(await createClient(), parsed.data.beam_id, parsed.data.loom_id);
+    // A busy loom without a choice for its running beam is refused by the database with a clear message.
+    await loadBeam(await createClient(), parsed.data.beam_id, parsed.data.loom_id, parsed.data.replace);
   } catch (e) {
     return { error: friendlyError(e), values: formValues(form) };
   }
@@ -43,15 +44,16 @@ export async function productionAction(_: FormState, form: FormData): Promise<Fo
   const back = safePath(form.get('return'));
   // On a loom page the form disappears once the beam is finished, so say it on the page itself.
   if (p.finish_beam && back) redirect(`${back}?finished=${encodeURIComponent(beamNo)}`);
+  const what = saved.net_meters !== null
+    ? L.production.saved(fmtM(saved.net_meters), saved.roll_count, machine)
+    : L.production.savedReading(fmtM(saved.counter_reading), machine);
   return {
     ok: true,
-    message: p.finish_beam
-      ? `${L.production.saved(fmtM(saved.net_meters), saved.roll_count, machine)}. ${L.takeoff.savedFinished(beamNo)}`
-      : L.production.saved(fmtM(saved.net_meters), saved.roll_count, machine),
-    // keep loom, date, shift, roll length, GSM and width for the next entry
+    message: p.finish_beam ? `${what}. ${L.takeoff.savedFinished(beamNo)}` : what,
+    // keep loom, date, roll length, GSM and width for the next entry (time and shift follow the clock)
     values: {
-      loom_id: p.loom_id, entry_date: p.entry_date, shift: p.shift ?? '', finished: p.finish_beam ? '1' : '',
-      roll_length_m: String(p.roll_length_m), gsm: p.gsm !== undefined ? String(p.gsm) : '', width_m: p.width_m !== undefined ? String(p.width_m) : '',
+      loom_id: p.loom_id, entry_date: p.entry_date ?? '', finished: p.finish_beam ? '1' : '',
+      roll_length_m: p.roll_length_m !== undefined ? String(p.roll_length_m) : '', gsm: p.gsm !== undefined ? String(p.gsm) : '', width_m: p.width_m !== undefined ? String(p.width_m) : '',
     },
   };
 }
@@ -77,9 +79,7 @@ export async function finishBeamAction(form: FormData): Promise<void> {
 
 export async function unloadBeamAction(form: FormData): Promise<void> {
   const beamId = String(form.get('beam_id') ?? '');
-  await act(form, `/beams/${beamId}`, async (db) => {
-    if (!(await unloadBeam(db, beamId))) throw notAllowed();
-  });
+  await act(form, `/beams/${beamId}`, (db) => unloadBeam(db, beamId));
 }
 
 export async function deleteTakeoffAction(form: FormData): Promise<void> {

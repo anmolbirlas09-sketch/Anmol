@@ -3,9 +3,9 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { SpecDetails } from '@/components/SpecPicker';
-import { Card, Notice, PageHeader, SectionTitle, Stat, buttonClass, cx } from '@/components/ui';
+import { Card, LinkButton, Notice, PageHeader, SectionTitle, Stat, buttonClass, cx } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
-import { getBeamSummary, getConsumptionLines } from '@/lib/data/beams';
+import { getBeamSummary, getConsumptionLines, listBeamEvents } from '@/lib/data/beams';
 import { listLoomStatus, listTakeoffs } from '@/lib/data/looms';
 import { getFabricQuality } from '@/lib/data/masters';
 import { listOpenLots } from '@/lib/data/yarn';
@@ -14,7 +14,7 @@ import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { BeamSummary, ConsumptionLineView, UsageType } from '@/lib/types';
 import { deleteConsumptionAction } from '../actions';
-import { finishBeamAction } from '../../looms/actions';
+import { finishBeamAction, unloadBeamAction } from '../../looms/actions';
 import { LoadBeamForm } from '../../looms/LoadBeamForm';
 import { TakeoffList } from '../../looms/TakeoffList';
 import { BeamStatusBadge } from '../BeamStatusBadge';
@@ -25,73 +25,81 @@ export const metadata: Metadata = { title: L.beam.title };
 export default async function BeamPage({ params, searchParams }: PageProps<'/beams/[id]'>) {
   const user = await requireUser();
   const { id } = await params;
-  const { created, error } = await searchParams;
+  const { created, saved, error } = await searchParams;
   const db = await createClient();
   const beam = await getBeamSummary(db, id).catch(() => null);
   if (!beam) notFound();
-  const [lines, lots, fq, takeoffs, looms] = await Promise.all([
+  const mayWork = !user.factory_id || !beam.factory_id || user.factory_id === beam.factory_id;
+  const [lines, lots, fq, takeoffs, looms, events] = await Promise.all([
     getConsumptionLines(db, id),
     listOpenLots(db),
-    getFabricQuality(db, beam.fabric_quality_id),
-    listTakeoffs(db, { beamId: id, limit: 200 }),
-    beam.status === 'prepared' ? listLoomStatus(db, { factoryId: user.factory_id ?? undefined }) : Promise.resolve([]),
+    beam.fabric_quality_id ? getFabricQuality(db, beam.fabric_quality_id) : Promise.resolve(null),
+    listTakeoffs(db, { beamId: id, limit: 500 }),
+    beam.status === 'prepared' && mayWork ? listLoomStatus(db, { factoryId: user.factory_id ?? undefined }) : Promise.resolve([]),
+    listBeamEvents(db, { beamId: id }),
   ]);
   const editable = canEdit(user);
   const here = `/beams/${beam.beam_id}`;
+  const card = cardFields(beam);
+  const missing = card.flatMap((g) => g.fields).filter((f) => f.value === null).length;
 
   return (
     <>
       <PageHeader
         title={L.beam.beamTitle(beam.beam_no)}
         back="/beams"
+        action={editable ? <LinkButton href={`${here}/edit`} variant="secondary">{L.card.edit}</LinkButton> : undefined}
         subtitle={
           <span className="inline-flex flex-wrap items-center gap-2">
-            <BeamStatusBadge status={beam.status} />
-            {beam.fabric_quality_name} · <span data-testid="beam-spec">{beam.spec_code}</span> · {beam.factory_code}
-            {beam.machine_no && ` · ${L.beam.loom} ${beam.machine_no}`}
+            <BeamStatusBadge status={beam.status} unloaded={beam.status === 'prepared' && beam.takeoff_count > 0} />
+            {beam.fabric_quality_name ?? L.beam.noQuality} · <span data-testid="beam-spec">{beam.spec_code ?? L.beam.noSpec}</span>
+            {beam.factory_code && ` · ${beam.factory_code}`}
+            {beam.machine_no && beam.status === 'on_loom' && ` · ${L.beam.loom} ${beam.machine_no}`}
+            <span className="text-xs">· {L.card.cardNo(beam.card_no)}</span>
           </span>
         }
       />
-      {created && (
-        <div className="mb-4">
-          <Notice tone="ok">{L.beam.created(beam.beam_no)}</Notice>
-        </div>
+      {(created || saved) && (
+        <div className="mb-4"><Notice tone="ok">{L.card.saved(beam.beam_no)}</Notice></div>
       )}
-
       {typeof error === 'string' && (
-        <div className="mb-4">
-          <Notice tone="bad">{error}</Notice>
-        </div>
+        <div className="mb-4"><Notice tone="bad">{error}</Notice></div>
       )}
 
-      <div className="mb-4"><SpecDetails spec={beam} /></div>
-
-      <PlannedVsActual beam={beam} />
-
-      <SectionTitle>{L.beam.loom}</SectionTitle>
-      {beam.status === 'prepared' && (
+      <SectionTitle>{L.card.status}</SectionTitle>
+      {beam.status === 'prepared' && mayWork && (
         <Card>
-          <LoadBeamForm beams={[]} looms={looms.filter((l) => l.status === 'idle')} fixedBeam={beam} />
+          <h2 className="mb-3 font-semibold">{L.loom.load}</h2>
+          <LoadBeamForm beams={[]} looms={looms.filter((l) => l.status !== 'maintenance')} fixedBeam={beam} canUnload={editable} />
         </Card>
       )}
       {beam.status === 'on_loom' && beam.loom_id && (
         <Card className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <Link href={`/looms/${beam.loom_id}`} className="text-lg font-bold text-brand">
+            <Link href={`/looms/${beam.loom_id}`} className="text-lg font-bold text-brand" data-testid="beam-loom">
               {L.beam.onLoom(beam.machine_no ?? '')}
             </Link>
             <div className="text-xs text-muted">{L.loom.loadedAt} {fmtDateTime(beam.loaded_at)}</div>
           </div>
-          <div className="flex gap-2">
-            <Link href={`/looms/${beam.loom_id}`} className={buttonClass.primary}>{L.takeoff.short}</Link>
-            <form action={finishBeamAction}>
-              <input type="hidden" name="beam_id" value={beam.beam_id} />
-              <input type="hidden" name="return" value={here} />
-              <ConfirmButton message={L.loom.finishConfirm(beam.beam_no)} className={buttonClass.secondary}>
-                {L.loom.finish}
-              </ConfirmButton>
-            </form>
-          </div>
+          {mayWork && (
+            <div className="flex flex-wrap gap-2">
+              <Link href={`/looms/${beam.loom_id}`} className={buttonClass.primary}>{L.takeoff.short}</Link>
+              {editable && (
+                <form action={unloadBeamAction}>
+                  <input type="hidden" name="beam_id" value={beam.beam_id} />
+                  <input type="hidden" name="return" value={here} />
+                  <ConfirmButton message={L.loom.unloadConfirm} className={buttonClass.secondary}>{L.loom.unload}</ConfirmButton>
+                </form>
+              )}
+              <form action={finishBeamAction}>
+                <input type="hidden" name="beam_id" value={beam.beam_id} />
+                <input type="hidden" name="return" value={here} />
+                <ConfirmButton message={L.loom.finishConfirm(beam.beam_no)} className={buttonClass.secondary}>
+                  {L.loom.finish}
+                </ConfirmButton>
+              </form>
+            </div>
+          )}
         </Card>
       )}
       {beam.status === 'finished' && (
@@ -100,6 +108,36 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
           {beam.machine_no ? ` · ${beam.machine_no}` : ''}
         </p>
       )}
+
+      <SectionTitle
+        action={editable && missing > 0 ? <Link href={`${here}/edit`} className="text-sm font-semibold text-brand">{L.card.complete}</Link> : undefined}
+      >
+        {L.card.title}
+      </SectionTitle>
+      <Card data-testid="beam-card">
+        <p className={cx('mb-3 text-sm font-semibold', missing ? 'text-warn' : 'text-ok')} data-testid="card-missing">
+          {missing ? L.card.missing(missing) : L.card.allFilled}
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {card.map((g) => (
+            <div key={g.title}>
+              <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-muted">{g.title}</h3>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-sm">
+                {g.fields.map((f) => (
+                  <div key={f.label} className="contents">
+                    <dt className="text-muted">{f.label}</dt>
+                    <dd className={cx('tnum font-semibold', f.value === null && 'font-normal text-muted')} data-field={f.label}>{f.value ?? L.card.notSet}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      {beam.spec_code && <div className="mt-4"><SpecDetails spec={{ ...beam, spec_code: beam.spec_code }} /></div>}
+
+      <div className="mt-4"><PlannedVsActual beam={beam} /></div>
 
       {beam.takeoff_count > 0 && (
         <>
@@ -127,6 +165,29 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
         </>
       )}
 
+      <SectionTitle>{L.card.history}</SectionTitle>
+      {events.length === 0 ? (
+        <p className="text-sm text-muted">{L.card.noHistory}</p>
+      ) : (
+        <Card className="p-0">
+          <ol className="divide-y divide-line" aria-label={L.card.history}>
+            {events.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm" data-event={e.event}>
+                <span>
+                  <b>{L.card.events[e.event]}</b>{' '}
+                  <Link href={`/looms/${e.loom_id}`} className="font-semibold text-brand">{e.machine_no}</Link>
+                  {e.meters_so_far !== null && e.event !== 'loaded' && <span className="text-muted"> · {L.card.soFar(fmtM(e.meters_so_far))}</span>}
+                </span>
+                <span className="tnum shrink-0 text-xs text-muted">{fmtDateTime(e.at)}</span>
+              </li>
+            ))}
+          </ol>
+        </Card>
+      )}
+
+      <SectionTitle>{L.card.productionHistory}</SectionTitle>
+      <TakeoffList rows={takeoffs} canDelete={editable} returnTo={here} show="loom" />
+
       <SectionTitle>{L.beam.addConsumption}</SectionTitle>
       <Card>
         <ConsumptionForm
@@ -134,9 +195,9 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
           lots={lots}
           today={todayIST()}
           expected={{
-            // the specification's yarns (falling back to the parent quality's defaults)
-            warp: { id: beam.spec_warp_yarn_quality_id ?? fq?.warp_yarn_quality_id ?? null, name: beam.warp_yarn_quality_name ?? null },
-            weft: { id: beam.spec_weft_yarn_quality_id ?? fq?.weft_yarn_quality_id ?? null, name: beam.weft_yarn_quality_name ?? null },
+            // the specification's yarns (falling back to the card's, then the parent quality's)
+            warp: { id: beam.spec_warp_yarn_quality_id ?? beam.card_warp_yarn_quality_id ?? fq?.warp_yarn_quality_id ?? null, name: beam.warp_yarn_quality_name ?? null },
+            weft: { id: beam.spec_weft_yarn_quality_id ?? beam.card_weft_yarn_quality_id ?? fq?.weft_yarn_quality_id ?? null, name: beam.weft_yarn_quality_name ?? null },
           }}
         />
       </Card>
@@ -151,25 +212,44 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
           ))}
         </div>
       )}
-
-      <SectionTitle>{L.beam.takeoffs}</SectionTitle>
-      <TakeoffList rows={takeoffs} canDelete={editable} returnTo={here} show="loom" />
-
-      <dl className="mt-6 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
-        {[
-          [L.beam.warpLength, `${fmtM(beam.warp_length_m)} m`],
-          [L.beam.expectedFabric, `${fmtM(beam.expected_fabric_length_m)} m`],
-          [L.beam.createdDate, fmtDate(beam.created_date)],
-          [L.beam.greyProduced, beam.takeoff_count ? `${fmtM(beam.grey_meters)} m / ${fmtKg(beam.grey_kg)} kg` : L.app.none],
-        ].map(([k, v]) => (
-          <div key={k}>
-            <dt className="text-muted">{k}</dt>
-            <dd className="tnum font-semibold">{v}</dd>
-          </div>
-        ))}
-      </dl>
     </>
   );
+}
+
+/** The 20 beam card fields in the factory card's groups (null = not filled in). */
+function cardFields(b: BeamSummary): { title: string; fields: { label: string; value: string | null }[] }[] {
+  const C = L.card;
+  const n = (v: number | null, f: (x: number) => string = String) => (v === null ? null : f(v));
+  return [
+    { title: C.sIdentification, fields: [
+      { label: C.beamNo, value: b.beam_no_entered },
+      { label: C.makingDate, value: b.created_date ? fmtDate(b.created_date) : null },
+      { label: C.quality, value: b.fabric_quality_name },
+    ] },
+    { title: C.sWarpWeft, fields: [
+      { label: C.warp, value: b.warp_yarn_quality_name },
+      { label: C.reed, value: n(b.reed) },
+      { label: C.totalEnds, value: n(b.total_ends) },
+      { label: C.reedSpace, value: n(b.reed_space_in) },
+      { label: C.weft, value: b.weft_yarn_quality_name },
+      { label: C.picks, value: n(b.picks_on_loom) },
+    ] },
+    { title: C.sMeasure, fields: [
+      { label: C.counterMeter, value: n(b.warp_length_m, fmtM) },
+      { label: C.rollingMeter, value: n(b.rolling_meter, fmtM) },
+      { label: C.warpWeight, value: n(b.warp_weight_kg, fmtKg) },
+      { label: C.gw, value: n(b.gross_weight_kg, fmtKg) },
+      { label: C.fw, value: n(b.finished_weight_kg, fmtKg) },
+      { label: C.weftWeight, value: n(b.weft_weight_kg, fmtKg) },
+    ] },
+    { title: C.sWeaving, fields: [{ label: C.weave, value: b.weave }] },
+    { title: C.sDates, fields: [
+      { label: C.gettingDate, value: b.getting_date ? fmtDate(b.getting_date) : null },
+      { label: C.finishExpected, value: b.expected_finish_date ? fmtDate(b.expected_finish_date) : null },
+      { label: C.finishActual, value: b.actual_finish_date ? fmtDate(b.actual_finish_date) : null },
+    ] },
+    { title: C.sLoom, fields: [{ label: C.loom, value: b.machine_no }] },
+  ];
 }
 
 function PlannedVsActual({ beam }: { beam: BeamSummary }) {

@@ -1,6 +1,7 @@
 import { fetchAll } from '../data/paging';
 import type { Db } from '../data/client';
 import { L } from '../labels';
+import { fmtTime } from '../format';
 import type { BeamSummary, FabricRoll, Takeoff } from '../types';
 import { subtitleFor, totalsFor, weightedPct, type Column, type ReportKind, type ReportParams, type ReportTable, type Row } from './model';
 
@@ -41,6 +42,25 @@ const yarnCols: Column[] = [
   { key: 'adjusted_kg', label: C.adjusted, kind: 'kg', total: true },
   { key: 'closing_kg', label: C.closing, kind: 'kg', total: true },
 ];
+
+/** Production entries in the period with every filter applied, in the order the readings were taken. */
+async function fetchTakeoffs(db: Db, p: ReportParams): Promise<Takeoff[]> {
+  return fetchAll<Takeoff>((from, to) => {
+    let q = db.from('v_takeoffs').select('*').gte('entry_date', p.from).lte('entry_date', p.to);
+    if (p.factoryId) q = q.eq('factory_id', p.factoryId);
+    if (p.loomId) q = q.eq('loom_id', p.loomId);
+    if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
+    if (p.fabricSpecificationId) q = q.eq('fabric_specification_id', p.fabricSpecificationId);
+    if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
+    if (p.timeFrom) q = q.gte('production_time', p.timeFrom);
+    if (p.timeTo) q = q.lte('production_time', `${p.timeTo}:59`);
+    if (p.shift) q = q.eq('shift', p.shift);
+    return q.order('reading_at').order('created_at').range(from, to);
+  });
+}
+
+const add = (a: number | null, b: number | null) => (b === null ? a : (a ?? 0) + b);
+const r2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100);
 
 export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Promise<ReportTable> {
   const args = { p_from: p.from, p_to: p.to, p_factory_id: p.factoryId ?? null };
@@ -83,6 +103,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
       const rows = await rpcAll(db, 'report_loom_production', {
         ...args, p_period: p.period, p_loom_id: p.loomId ?? null, p_fabric_quality_id: p.fabricQualityId ?? null, p_beam_no: p.beamNo ?? null,
         p_fabric_specification_id: p.fabricSpecificationId ?? null,
+        p_time_from: p.timeFrom ?? null, p_time_to: p.timeTo ? `${p.timeTo}:59` : null, p_shift: p.shift ?? null,
       }, 'period');
       return table(kind, p, [
         { key: 'period', label: C.period, kind: p.period === 'month' ? 'month' : 'date' },
@@ -150,17 +171,12 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
       return { ...table(kind, p, columns, out), totals: totalsFor(columns, parents), indented };
     }
     case 'production': {
-      const entries = await fetchAll<Takeoff>((from, to) => {
-        let q = db.from('v_takeoffs').select('*').gte('entry_date', p.from).lte('entry_date', p.to);
-        if (p.factoryId) q = q.eq('factory_id', p.factoryId);
-        if (p.loomId) q = q.eq('loom_id', p.loomId);
-        if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
-        if (p.fabricSpecificationId) q = q.eq('fabric_specification_id', p.fabricSpecificationId);
-        if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
-        return q.order('entry_date').order('created_at').range(from, to);
-      });
+      const entries = await fetchTakeoffs(db, p);
       const rows: Row[] = entries.map((t) => ({
-        entry_date: t.entry_date, shift: t.shift ? (L.takeoff.shiftShort[t.shift] ?? t.shift) : null, machine_no: t.machine_no, beam_no: t.beam_no,
+        entry_date: t.entry_date, production_time: t.production_time ? fmtTime(t.production_time) : null,
+        shift: t.shift ? (L.takeoff.shiftShort[t.shift] ?? t.shift) : null, machine_no: t.machine_no, beam_no: t.beam_no,
+        counter_reading: t.counter_reading, previous_reading: t.previous_reading,
+        meters_source: t.meters_source === 'counter' ? L.production.sourceCounter : t.meters_source === 'manual' ? L.production.sourceManual : null,
         fabric_quality_name: t.fabric_quality_name, spec_code: t.spec_code, reed: t.reed, ends_per_inch: t.ends_per_inch,
         warp_yarn: t.warp_yarn_quality_name, weft_yarn: t.weft_yarn_quality_name, meters: t.meters, wasted_meters: t.wasted_meters, net_meters: t.net_meters,
         wastage_pct: t.wastage_pct, roll_count: t.roll_count, roll_length_m: t.roll_length_m, gsm: t.gsm, width_m: t.width_m,
@@ -169,6 +185,7 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
       }));
       return table(kind, p, [
         { key: 'entry_date', label: C.date, kind: 'date' },
+        { key: 'production_time', label: C.time, kind: 'text' },
         { key: 'shift', label: C.shift, kind: 'text' },
         { key: 'machine_no', label: C.loom, kind: 'text' },
         { key: 'beam_no', label: C.beam, kind: 'text' },
@@ -178,6 +195,9 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         { key: 'ends_per_inch', label: C.epi, kind: 'ratio' },
         { key: 'weft_yarn', label: C.weftYarn, kind: 'text' },
         { key: 'warp_yarn', label: C.warpYarn, kind: 'text' },
+        { key: 'counter_reading', label: C.counter, kind: 'm' },
+        { key: 'previous_reading', label: C.previous, kind: 'm' },
+        { key: 'meters_source', label: C.source, kind: 'text' },
         ...metreColumns,
         { key: 'roll_count', label: C.rolls, kind: 'int', total: true },
         { key: 'roll_length_m', label: C.rollLength, kind: 'm' },
@@ -186,6 +206,103 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
         ...kgColumns,
         { key: 'weight_wastage_pct', label: C.wastePctActual, kind: 'pct' },
         { key: 'waste_pct_entered', label: C.wastePctEntered, kind: 'pct' },
+      ], rows);
+    }
+    case 'daily': {
+      const group = p.group ?? 'loom';
+      const entries = await fetchTakeoffs(db, p);
+      const keyOf = (t: Takeoff): [string, string] => {
+        switch (group) {
+          case 'quality': return [t.fabric_quality_id ?? '', t.fabric_quality_name ?? C.notSet];
+          case 'spec': return [t.fabric_specification_id ?? `q:${t.fabric_quality_id ?? ''}`, `${t.fabric_quality_name ?? C.notSet} · ${t.spec_code ?? C.notSet}`];
+          case 'beam': return [t.beam_id, `${t.beam_no} · ${t.fabric_quality_name ?? C.notSet}`];
+          default: return [t.loom_id, t.machine_no];
+        }
+      };
+      const byKey = new Map<string, Row>();
+      const sortKey = new Map<string, { d: string; f: string; o: number; l: string }>();
+      // One day for all looms: list every loom, also those that produced nothing.
+      if (group === 'loom' && p.from === p.to) {
+        let lq = db.from('v_loom_status').select('loom_id, machine_no, factory_code, sort_order').eq('active', true);
+        if (p.factoryId) lq = lq.eq('factory_id', p.factoryId);
+        if (p.loomId) lq = lq.eq('loom_id', p.loomId);
+        const all = (await lq).data as { loom_id: string; machine_no: string; factory_code: string; sort_order: number }[] | null;
+        for (const l of all ?? []) {
+          const k = `${p.from}|${l.loom_id}`;
+          byKey.set(k, { entry_date: p.from, label: l.machine_no, factory_code: l.factory_code, takeoff_count: 0, meters: null, wasted_meters: null, net_meters: null, roll_count: 0 });
+          sortKey.set(k, { d: p.from, f: l.factory_code, o: l.sort_order, l: l.machine_no });
+        }
+      }
+      for (const t of entries) {
+        const [id, label] = keyOf(t);
+        const k = `${t.entry_date}|${id}`;
+        const r = byKey.get(k) ?? { entry_date: t.entry_date, label, factory_code: t.factory_code, takeoff_count: 0, meters: null, wasted_meters: null, net_meters: null, roll_count: 0 };
+        r.takeoff_count = Number(r.takeoff_count) + 1;
+        r.meters = add(r.meters as number | null, t.meters);
+        if (t.meters !== null) r.wasted_meters = add(r.wasted_meters as number | null, t.wasted_meters);
+        r.net_meters = add(r.net_meters as number | null, t.net_meters);
+        r.roll_count = Number(r.roll_count) + Number(t.roll_count);
+        byKey.set(k, r);
+        if (!sortKey.has(k)) sortKey.set(k, { d: t.entry_date, f: group === 'loom' ? t.factory_code : '', o: 0, l: label });
+      }
+      const rows = [...byKey.entries()]
+        .sort(([a], [b]) => {
+          const x = sortKey.get(a)!, y = sortKey.get(b)!;
+          // date, then factory (L-76 before L-75, as everywhere), then loom order / name
+          return x.d.localeCompare(y.d) || y.f.localeCompare(x.f) || x.o - y.o || x.l.localeCompare(y.l, 'en', { numeric: true });
+        })
+        .map(([, r]) => ({
+          ...r, meters: r2(r.meters as number | null), wasted_meters: r2(r.wasted_meters as number | null), net_meters: r2(r.net_meters as number | null),
+          wastage_pct: weightedPct('wasted_meters', 'meters')([r]),
+        }));
+      const groupLabel = { loom: C.loom, quality: C.fabricQuality, spec: C.spec, beam: C.beam }[group];
+      return table(kind, p, [
+        { key: 'entry_date', label: C.date, kind: 'date' },
+        { key: 'label', label: groupLabel, kind: 'text' },
+        ...(group === 'loom' ? [{ key: 'factory_code', label: C.factory, kind: 'text' } as Column] : []),
+        { key: 'takeoff_count', label: C.takeoffs, kind: 'int', total: true },
+        ...metreColumns,
+        { key: 'roll_count', label: C.rolls, kind: 'int', total: true },
+      ], rows);
+    }
+    case 'shift': {
+      const entries = await fetchTakeoffs(db, p);
+      const byLoom = new Map<string, Row>();
+      for (const t of entries) {
+        const r = byLoom.get(t.loom_id) ?? {
+          machine_no: t.machine_no, factory_code: t.factory_code, day_m: null, night_m: null, noshift_m: null,
+          day_entries: 0, night_entries: 0, takeoff_count: 0, meters: null, wasted_meters: null, net_meters: null,
+        };
+        const col = t.shift === 'day' ? 'day_m' : t.shift === 'night' ? 'night_m' : 'noshift_m';
+        r[col] = r2(add(r[col] as number | null, t.meters));
+        if (t.shift === 'day') r.day_entries = Number(r.day_entries) + 1;
+        if (t.shift === 'night') r.night_entries = Number(r.night_entries) + 1;
+        r.takeoff_count = Number(r.takeoff_count) + 1;
+        r.meters = r2(add(r.meters as number | null, t.meters));
+        if (t.meters !== null) r.wasted_meters = r2(add(r.wasted_meters as number | null, t.wasted_meters));
+        r.net_meters = r2(add(r.net_meters as number | null, t.net_meters));
+        byLoom.set(t.loom_id, r);
+      }
+      const rows = [...byLoom.values()]
+        .sort((a, b) => String(b.factory_code).localeCompare(String(a.factory_code)) || String(a.machine_no).localeCompare(String(b.machine_no), 'en', { numeric: true }))
+        .map((r) => ({
+          ...r, wastage_pct: weightedPct('wasted_meters', 'meters')([r]),
+          avg_m: r.meters !== null && Number(r.takeoff_count) ? r2(Number(r.meters) / Number(r.takeoff_count)) : null,
+        }));
+      return table(kind, p, [
+        { key: 'machine_no', label: C.loom, kind: 'text' },
+        { key: 'factory_code', label: C.factory, kind: 'text' },
+        { key: 'day_m', label: C.dayM, kind: 'm', total: true },
+        { key: 'night_m', label: C.nightM, kind: 'm', total: true },
+        { key: 'noshift_m', label: C.noShiftM, kind: 'm', total: true },
+        { key: 'meters', label: C.totalM, kind: 'm', total: true },
+        { key: 'day_entries', label: C.dayEntries, kind: 'int', total: true },
+        { key: 'night_entries', label: C.nightEntries, kind: 'int', total: true },
+        { key: 'takeoff_count', label: C.takeoffs, kind: 'int', total: true },
+        { key: 'avg_m', label: C.avgPerEntry, kind: 'm' },
+        { key: 'wasted_meters', label: C.wastedM, kind: 'm', total: true },
+        { key: 'net_meters', label: C.netM, kind: 'm', total: true },
+        { key: 'wastage_pct', label: C.wastageMPct, kind: 'pct', total: weightedPct('wasted_meters', 'meters') },
       ], rows);
     }
     case 'rolls': {
@@ -216,17 +333,17 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
     case 'beam-register':
     case 'variance': {
       const beams = await fetchAll<BeamSummary>((from, to) => {
-        let q = db.from('v_beam_summary').select('*').gte('created_date', p.from).lte('created_date', p.to);
+        let q = db.from('v_beam_summary').select('*').gte('register_date', p.from).lte('register_date', p.to);
         if (p.factoryId) q = q.eq('factory_id', p.factoryId);
         if (p.loomId) q = q.eq('loom_id', p.loomId);
         if (p.fabricQualityId) q = q.eq('fabric_quality_id', p.fabricQualityId);
         if (p.fabricSpecificationId) q = q.eq('fabric_specification_id', p.fabricSpecificationId);
         if (p.beamNo) q = q.ilike('beam_no', p.beamNo);
-        return q.order('created_date').order('beam_no').range(from, to);
+        return q.order('register_date').order('card_no').range(from, to);
       });
       if (kind === 'beam-register') {
         const rows: Row[] = beams.map((b) => ({
-          beam_no: b.beam_no, created_date: b.created_date, factory_code: b.factory_code, fabric_quality_name: b.fabric_quality_name, spec_code: b.spec_code,
+          beam_no: b.beam_no, created_date: b.register_date, factory_code: b.factory_code, fabric_quality_name: b.fabric_quality_name, spec_code: b.spec_code,
           machine_no: b.machine_no, status: L.beam.statuses[b.status],
           warp_issued: b.warp_kg, weft_issued: b.weft_kg, yarn_issued: b.total_yarn_kg,
           meters: b.takeoff_count ? b.grey_meters : null, wasted_meters: b.takeoff_count ? b.wasted_meters : null,
@@ -241,7 +358,6 @@ export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Pr
           { key: 'factory_code', label: C.factory, kind: 'text' },
           { key: 'fabric_quality_name', label: C.fabricQuality, kind: 'text' },
           { key: 'spec_code', label: C.spec, kind: 'text' },
-        { key: 'spec_code', label: C.spec, kind: 'text' },
           { key: 'machine_no', label: C.loom, kind: 'text' },
           { key: 'status', label: C.status, kind: 'text' },
           { key: 'warp_issued', label: C.warpIssued, kind: 'kg', total: true },

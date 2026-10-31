@@ -4,11 +4,11 @@ import { randomUUID } from 'node:crypto';
 import { createClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { getBeamSummary } from '@/lib/data/beams';
-import type { Db, SpecOptional } from '@/lib/data/client';
+import type { Db } from '@/lib/data/client';
 import { loadDashboard } from '@/lib/data/dashboard';
 import { createDispatch } from '@/lib/data/dispatch';
 import { greyStock } from '@/lib/data/grey';
-import { listRolls, listTakeoffs, loadBeam, recordProduction } from '@/lib/data/looms';
+import { listRolls, listTakeoffs, loadBeam, recordProduction, type ProductionEntry } from '@/lib/data/looms';
 import { DataError, friendlyError } from '@/lib/errors';
 import { todayIST } from '@/lib/format';
 import { buildReport } from '@/lib/reports/build';
@@ -29,7 +29,7 @@ async function signIn(email: string): Promise<Db> {
   return c;
 }
 
-const entry = (loom: string, over: Partial<ProductionInputForm> = {}): SpecOptional<ProductionInputForm> => ({
+const entry = (loom: string, over: Partial<ProductionInputForm> = {}): ProductionEntry => ({
   loom_id: id[loom], fabric_quality_id: id['Mono White'], meters: 680, wasted_meters: 33, roll_length_m: 100,
   entry_date: today, finish_beam: false, ...over,
 });

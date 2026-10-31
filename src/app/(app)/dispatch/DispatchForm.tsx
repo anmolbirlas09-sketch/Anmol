@@ -31,7 +31,9 @@ export function DispatchForm({ stock, factories, defaultFactoryId, today }: { st
     }
   }, [state]);
 
-  const atFactory = stock.filter((s) => s.factory_id === factoryId && (s.stock_m > 0 || s.stock_kg > 0));
+  // Only stock whose quality and specification are known can be dispatched.
+  const atFactory = stock.filter((s): s is typeof s & { fabric_specification_id: string; spec_code: string; fabric_quality_name: string } =>
+    s.factory_id === factoryId && s.fabric_specification_id !== null && s.fabric_quality_name !== null && (s.stock_m > 0 || s.stock_kg > 0));
   const row = atFactory.find((s) => s.fabric_specification_id === specId);
   // Metres always; kg only when every production entry was weighed (otherwise kg stock is not known).
   const kgKnown = row ? Number(row.unweighed_count ?? 0) === 0 : false;

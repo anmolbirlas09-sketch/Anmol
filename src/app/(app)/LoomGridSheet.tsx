@@ -109,7 +109,7 @@ export function LoomGridSheet({ looms, userFactoryId }: { looms: LoomStatusRow[]
 
             <div className="mt-5 grid grid-cols-2 gap-2">
               {mayWork && loom.status === 'running' && <Link href={`/takeoff?loom=${loom.loom_id}`} className={buttonClass.primary}>{L.takeoff.short}</Link>}
-              {mayWork && loom.status === 'idle' && <Link href={`/looms/load?loom=${loom.loom_id}`} className={buttonClass.primary}>{L.loom.loadShort}</Link>}
+              {mayWork && loom.status === 'idle' && <Link href={`/beams/new?loom=${loom.loom_id}`} className={buttonClass.primary}>{L.card.newTitle}</Link>}
               <Link href={`/looms/${loom.loom_id}`} className={cx(buttonClass.secondary, (!mayWork || loom.status === 'maintenance') && 'col-span-2')}>
                 {L.dashboard.openLoom}
               </Link>

@@ -7,7 +7,7 @@ const field = `${inputClass} mt-1 font-normal`;
 
 /** Plain GET form: the filters live in the URL, so reports can be bookmarked and shared. */
 export function ReportFilters({
-  action, p, factories, lockedFactory, showPeriod, looms, qualities, specs, specsToggle,
+  action, p, factories, lockedFactory, showPeriod, looms, qualities, specs, specsToggle, timed, groupBy,
 }: {
   action: string;
   p: ReportParams;
@@ -20,6 +20,10 @@ export function ReportFilters({
   specs?: { id: string; spec_code: string; fabric_quality_name: string }[];
   /** Offer "each specification under its parent" vs "parent qualities only". */
   specsToggle?: boolean;
+  /** Time-of-day window and shift (time-stamped production reports). */
+  timed?: boolean;
+  /** Daily report: group rows by loom / quality / specification / beam. */
+  groupBy?: boolean;
 }) {
   const detailed = Boolean(looms && qualities);
   return (
@@ -87,6 +91,34 @@ export function ReportFilters({
           <label className="text-sm font-semibold">
             {L.reports.beamNo}
             <input name="beam" defaultValue={p.beamNo ?? ''} autoCapitalize="characters" className={field} />
+          </label>
+        </>
+      )}
+      {groupBy && (
+        <label className="text-sm font-semibold">
+          {L.reports.groupBy}
+          <select name="group" defaultValue={p.group ?? 'loom'} className={field}>
+            {Object.entries(L.reports.groups).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+      )}
+      {timed && (
+        <>
+          <label className="text-sm font-semibold">
+            {L.reports.timeFrom}
+            <input type="time" name="tfrom" defaultValue={p.timeFrom ?? ''} className={field} />
+          </label>
+          <label className="text-sm font-semibold">
+            {L.reports.timeTo}
+            <input type="time" name="tto" defaultValue={p.timeTo ?? ''} className={field} />
+          </label>
+          <label className="text-sm font-semibold">
+            {L.reports.shift}
+            <select name="shift" defaultValue={p.shift ?? ''} className={field}>
+              <option value="">{L.reports.any}</option>
+              <option value="day">{L.takeoff.shifts.day}</option>
+              <option value="night">{L.takeoff.shifts.night}</option>
+            </select>
           </label>
         </>
       )}

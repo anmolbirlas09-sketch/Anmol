@@ -135,8 +135,8 @@ describe('§8 steps 5–9 through the app’s data layer', () => {
     expect(friendlyError(err)).toBe('Loom L76-06 has no beam running');
   });
 
-  it('a beam with take-offs cannot be unloaded; data entry cannot delete take-offs; supervisor can', async () => {
-    expect(friendlyError(await dbError(unloadBeam(sup76, id['B-001'])))).toMatch(/cannot go back to prepared/);
+  it('data entry cannot unload a beam or delete take-offs; a supervisor can', async () => {
+    expect(friendlyError(await dbError(unloadBeam(entry76, id['B-001'])))).toBe('Only an owner or supervisor can unload a beam');
     const extra = await recordTakeoff(sup76, takeoff('L76-05', 10, 5));
     expect(await deleteTakeoff(entry76, extra.id)).toBe(false);
     expect(await deleteTakeoff(sup76, extra.id)).toBe(true);
@@ -157,12 +157,12 @@ describe('§8 steps 5–9 through the app’s data layer', () => {
     expect((await getLoomStatus(owner, id['L75-12']))!.status).toBe('idle');
   });
 
-  it('unloading a beam loaded by mistake (no take-offs) puts it back to prepared', async () => {
+  it('unloading a beam puts it back off the loom (supervisor)', async () => {
     const f76 = await db.id('factories', 'code', 'L-76');
     const fq = await db.id('fabric_qualities', 'name', 'Mono White');
     const bid = (await db.sql.query(`insert into beams (beam_no, fabric_quality_id, factory_id, warp_length_m) values ('B-003', $1, $2, 100) returning id`, [fq, f76])).rows[0].id;
     await loadBeam(entry76, bid, id['L76-06']);
-    expect(await unloadBeam(entry76, bid)).toBe(false); // data entry cannot
+    expect(friendlyError(await dbError(unloadBeam(entry76, bid)))).toBe('Only an owner or supervisor can unload a beam'); // data entry cannot
     expect(await unloadBeam(sup76, bid)).toBe(true);
     expect((await getLoomStatus(owner, id['L76-06']))!.status).toBe('idle');
     expect((await getBeamSummary(owner, bid))!.status).toBe('prepared');

@@ -51,9 +51,10 @@ export default async function GreyPage({ searchParams }: PageProps<'/grey'>) {
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-muted">{L.grey.byQuality}</h2>
           <ul className="grid gap-2 md:grid-cols-2" aria-label={L.grey.byQuality}>
             {groups.map((g) => (
-              <li key={g.fabric_quality_id} className="rounded-xl border border-line bg-surface p-4">
+              <li key={g.fabric_quality_id ?? 'unset'} className="rounded-xl border border-line bg-surface p-4">
                 <div className="flex items-start justify-between gap-3">
-                  <h3 className="font-bold">{g.fabric_quality_name}</h3>
+                  <h3 className="font-bold">{g.fabric_quality_name ?? L.grey.qualityNotSet}</h3>
+                  {g.fabric_quality_id === null && <p className="text-xs text-muted">{L.grey.qualityNotSetHint}</p>}
                   <div className="tnum shrink-0 text-right">
                     <div className="text-lg font-bold">{fmtM(g.stock_m)} m</div>
                     <div className="text-sm font-semibold">{fmtKg(g.stock_kg)} kg</div>
@@ -85,9 +86,9 @@ export default async function GreyPage({ searchParams }: PageProps<'/grey'>) {
                   <summary className="cursor-pointer text-xs font-semibold text-brand">{L.spec.count(g.specs.length)}</summary>
                   <div className="mt-1 space-y-1.5">
                     {g.specs.map((sp) => (
-                      <div key={sp.fabric_specification_id} className="tnum rounded-md bg-sunken px-2 py-1.5 text-xs" data-spec={sp.spec_code}>
+                      <div key={sp.fabric_specification_id ?? 'unset'} className="tnum rounded-md bg-sunken px-2 py-1.5 text-xs" data-spec={sp.spec_code ?? ''}>
                         <div className="flex justify-between gap-2">
-                          <span className="font-semibold">{sp.spec_code}</span>
+                          <span className="font-semibold">{sp.spec_code ?? L.beam.noSpec}</span>
                           <span className="font-semibold">{fmtM(sp.stock_m)} m · {fmtKg(sp.stock_kg)} kg</span>
                         </div>
                         <div className="text-muted">

@@ -16,7 +16,7 @@ export async function GET(request: Request, ctx: RouteContext<'/reports/[kind]/e
   const url = new URL(request.url);
   const db = await createClient();
   const [factories, looms, qualities, specs] = await Promise.all([listFactories(db), listLooms(db), listFabricQualities(db), listSpecifications(db)]);
-  const p = reportParams(Object.fromEntries(url.searchParams), factories, user.factory_id, { looms, qualities, specs });
+  const p = reportParams(Object.fromEntries(url.searchParams), factories, user.factory_id, { looms, qualities, specs }, kind === 'daily');
   const report = await buildReport(db, kind, p);
 
   const pdf = url.searchParams.get('format') === 'pdf';

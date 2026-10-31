@@ -223,6 +223,7 @@ describe('migration 0010 on an existing database', () => {
     const later = all.filter(isLater);
     expect(later.map((f) => f.split('/').pop())).toEqual([
       '20261031000010_metre_first_production.sql', '20261101000011_day_night_shifts.sql', '20261101000012_fabric_specifications.sql',
+      '20261102000013_beam_cards_timed_production.sql',
     ]);
     await admin((c) => c.query(`drop database if exists ${name} with (force)`));
     await admin((c) => c.query(`create database ${name}`));
@@ -265,6 +266,12 @@ describe('migration 0010 on an existing database', () => {
       const linked = (await c.query(`select count(*) filter (where p.fabric_specification_id = b.fabric_specification_id) as ok, count(*) as n
                                      from grey_fabric_production p join beams b on b.id = p.beam_id`)).rows[0];
       expect([num(linked.ok), num(linked.n)]).toEqual([2, 2]);
+      // 0013: the beam got a card number and its loading history; old entries are manual metres in time order.
+      const card = (await c.query(`select card_no, beam_no from beams`)).rows[0];
+      expect([card.card_no !== null, card.beam_no]).toEqual([true, 'OLD-1']);
+      expect((await c.query(`select e.event from beam_loom_events e order by e.at`)).rows.map((r) => r.event)).toEqual(['loaded']);
+      const timed = (await c.query(`select count(*) filter (where meters_source = 'manual' and reading_at is not null and production_time is null) as n from grey_fabric_production`)).rows[0];
+      expect(num(timed.n)).toBe(2);
       // and kg is still enforced for this fully weighed stock: 1000 m / 540 kg left
       await expect(c.query(`insert into grey_fabric_dispatch (fabric_quality_id, factory_id, meters, kgs)
                             select (select id from fabric_qualities where name = 'Mono White'), (select id from factories where code = 'L-76'), 10, 541`)).rejects.toMatchObject({ code: 'WV003' });

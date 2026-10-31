@@ -2,13 +2,13 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import { Combobox } from '@/components/Combobox';
-import { SpecPicker } from '@/components/SpecPicker';
+import { SpecDetails } from '@/components/SpecPicker';
 import { SubmitButton } from '@/components/form';
 import { Badge, Field, Notice, cx, inputClass } from '@/components/ui';
-import { fmtKg, fmtM, fmtPct } from '@/lib/format';
+import { fmtDate, fmtKg, fmtM, fmtPct, fmtTime, nowTimeIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { describeRolls, productionFigures } from '@/lib/production';
-import type { FabricQualityView, FabricSpecification, LoomStatusRow } from '@/lib/types';
+import type { FabricQualityView, LoomStatusRow } from '@/lib/types';
 import { SHIFTS, type FormState } from '@/lib/validation';
 import { productionAction } from './actions';
 
@@ -24,9 +24,12 @@ const num = (s: string): number | null => {
 
 const newRef = () => (typeof crypto !== 'undefined' && 'randomUUID' in crypto ? crypto.randomUUID() : `${Date.now()}`);
 
-// Fields cleared after each save; loom, quality, date, shift, roll length, GSM and width stay for the next entry.
-const PER_ENTRY = ['meters', 'wasted_meters', 'weighed_kg', 'warp_kg', 'weft_kg', 'waste_kg', 'waste_pct'] as const;
+// Fields cleared after each save; loom, date, roll length, GSM and width stay for the next entry.
+const PER_ENTRY = ['counter_reading', 'meters', 'wasted_meters', 'weighed_kg', 'warp_kg', 'weft_kg', 'waste_kg', 'waste_pct'] as const;
 type FieldName = (typeof PER_ENTRY)[number] | 'roll_length_m' | 'gsm' | 'width_m';
+
+/** Day 08:00–20:00, night otherwise (same rule as the database). */
+const shiftOf = (t: string) => (t ? (t >= '08:00' && t < '20:00' ? 'day' : 'night') : '');
 
 function Step({ n, title, children }: { n: number; title: string; children: React.ReactNode }) {
   return (
@@ -50,68 +53,81 @@ function Figure({ label, value, tone, testId }: { label: string; value: string; 
 }
 
 /**
- * Metre-first production entry:
- * 1 loom + quality → 2 total metres → 3 roll length → 4 wasted metres →
- * 5 net / wastage % (automatic) → 6 optional weights and KG wastage → 7 save.
+ * Production entry, metres first, stamped with the actual time:
+ * 1 loom → its active beam (quality, specification, reed, ends, yarns filled in)
+ * 2 date and actual time → 3 counter reading and / or production metres →
+ * 4 rolls and wastage (optional) → 5 weights (optional) → save.
+ * Nothing is compulsory except the metres or a counter reading.
  */
 export function ProductionForm({
-  looms, qualities, specs, fixedLoomId, defaultLoomId, today, shiftNow, returnTo,
+  looms, qualities, fixedLoomId, defaultLoomId, today, shiftNow, nowTime, returnTo,
 }: {
   looms: LoomStatusRow[];
+  /** For the GSM hint of the running quality. */
   qualities: FabricQualityView[];
-  specs: FabricSpecification[];
   fixedLoomId?: string;
   defaultLoomId?: string;
   today: string;
   /** The shift running now and its production date (night after midnight = yesterday's night). */
   shiftNow: { shift: string; date: string };
+  /** Current time HH:MM (IST), prefilled as the production time. */
+  nowTime: string;
   /** Page to come back to if the beam is finished. */
   returnTo?: string;
 }) {
   const [state, action] = useActionState(productionAction, {} as FormState);
   const [loomId, setLoomId] = useState(fixedLoomId ?? defaultLoomId ?? '');
   const loom = looms.find((l) => l.loom_id === loomId);
-  const [qualityId, setQualityId] = useState(loom?.fabric_quality_id ?? '');
-  const [specId, setSpecId] = useState(loom?.fabric_specification_id ?? '');
   const [v, setV] = useState<Record<FieldName, string>>({
-    meters: '', wasted_meters: '', roll_length_m: '', gsm: '', width_m: '',
+    counter_reading: '', meters: '', wasted_meters: '', roll_length_m: '', gsm: '', width_m: '',
     weighed_kg: '', warp_kg: '', weft_kg: '', waste_kg: '', waste_pct: '',
   });
+  const [time, setTime] = useState(nowTime);
+  const [shift, setShift] = useState(shiftOf(nowTime) || shiftNow.shift);
+  const [reset, setReset] = useState(false);
   const [finish, setFinish] = useState(false);
   const [clientRef, setClientRef] = useState(newRef);
   const set = (k: FieldName) => (e: React.ChangeEvent<HTMLInputElement>) => setV((o) => ({ ...o, [k]: e.target.value }));
+  const pickTime = (t: string) => {
+    setTime(t);
+    if (t) setShift(shiftOf(t));
+  };
 
   useEffect(() => {
     if (state.ok) {
       setV((o) => ({ ...o, ...Object.fromEntries(PER_ENTRY.map((k) => [k, ''])) }));
       setFinish(false);
+      setReset(false);
+      pickTime(nowTimeIST()); // the next reading is taken later
       setClientRef(newRef()); // next entry is a new record
       if (!fixedLoomId && state.values?.finished) setLoomId('');
     } else if (state.values) {
       const sv = state.values;
       setV((o) => ({ ...o, ...Object.fromEntries(Object.keys(o).map((k) => [k, sv[k] ?? ''])) }));
+      setTime(sv.production_time ?? '');
+      setShift(sv.shift ?? '');
+      setReset(sv.counter_reset === 'on');
     }
   }, [state, fixedLoomId]);
 
-  const pickLoom = (id: string) => {
-    setLoomId(id);
-    const l = looms.find((x) => x.loom_id === id);
-    setQualityId(l?.fabric_quality_id ?? '');
-    setSpecId(l?.fabric_specification_id ?? '');
-  };
+  // Counter → metres preview (the database does the same with the reading before this time).
+  const counter = num(v.counter_reading);
+  const previous = loom?.last_counter_reading ?? null;
+  const diff = counter !== null && previous !== null && !reset ? Math.round((counter - previous) * 100) / 100 : null;
+  const counterLower = diff !== null && diff < 0;
+  const typed = num(v.meters);
+  const effectiveMeters = typed ?? (diff !== null && diff > 0 ? diff : null);
 
   const fig = productionFigures({
-    meters: num(v.meters), wastedMeters: num(v.wasted_meters), rollLengthM: num(v.roll_length_m),
+    meters: effectiveMeters, wastedMeters: num(v.wasted_meters) ?? (effectiveMeters !== null ? 0 : null), rollLengthM: num(v.roll_length_m),
     gsm: num(v.gsm), widthM: num(v.width_m), weighedKg: num(v.weighed_kg),
     warpKg: num(v.warp_kg), weftKg: num(v.weft_kg), wasteKg: num(v.waste_kg), wastePct: num(v.waste_pct),
   });
-  const quality = qualities.find((q) => q.id === qualityId);
-  // The beam on the loom decides quality and specification; anything else is a mistake.
-  const mismatch = loom && ((qualityId && loom.fabric_quality_id && qualityId !== loom.fabric_quality_id)
-    || (specId && loom.fabric_specification_id && specId !== loom.fabric_specification_id));
-  const wastedTooMuch = num(v.wasted_meters) !== null && num(v.meters) !== null && num(v.wasted_meters)! > num(v.meters)!;
+  const quality = qualities.find((q) => q.id === loom?.fabric_quality_id);
+  const wastedTooMuch = num(v.wasted_meters) !== null && effectiveMeters !== null && num(v.wasted_meters)! > effectiveMeters;
   const err = state.fieldErrors ?? {};
   const showWeight = Boolean(v.gsm || v.width_m || v.weighed_kg || v.warp_kg || v.weft_kg);
+  const nothing = typed === null && counter === null;
 
   if (looms.length === 0) {
     return (
@@ -145,6 +161,9 @@ export function ProductionForm({
       <input type="hidden" name="machine_no" value={loom?.machine_no ?? ''} />
       <input type="hidden" name="beam_no" value={loom?.beam_no ?? ''} />
       <input type="hidden" name="client_ref" value={clientRef} />
+      {/* quality and specification come from the active beam (the database checks them again) */}
+      <input type="hidden" name="fabric_quality_id" value={loom?.fabric_quality_id ?? ''} />
+      <input type="hidden" name="fabric_specification_id" value={loom?.fabric_specification_id ?? ''} />
       {returnTo && <input type="hidden" name="return" value={returnTo} />}
 
       <Step n={1} title={P.step1}>
@@ -156,52 +175,85 @@ export function ProductionForm({
               id="loom_id"
               name="loom_id"
               value={loomId}
-              onChange={pickLoom}
+              onChange={setLoomId}
               invalid={Boolean(err.loom_id)}
-              options={looms.map((l) => ({ value: l.loom_id, label: l.machine_no, detail: `${l.beam_no} · ${l.fabric_quality_name}`, group: l.factory_code }))}
+              options={looms.map((l) => ({ value: l.loom_id, label: l.machine_no, detail: [l.beam_no, l.fabric_quality_name].filter(Boolean).join(' · '), group: l.factory_code }))}
             />
           </Field>
         )}
-        <SpecPicker
-          qualities={qualities}
-          // the running specification stays selectable even if it was deactivated meanwhile
-          specs={specs}
-          specFilter={(s) => s.active || s.id === loom?.fabric_specification_id}
-          qualityId={qualityId}
-          specId={specId}
-          onQuality={setQualityId}
-          onSpec={setSpecId}
-          errors={err}
-        />
         {loom && (
-          <div className="rounded-lg bg-sunken p-3 text-sm" data-testid="takeoff-beam">
-            <div className="font-semibold">{L.takeoff.beamOnLoom(loom.beam_no ?? '', `${loom.fabric_quality_name} · ${loom.spec_code}`)}</div>
-            <div className="tnum text-muted">{L.takeoff.soFar(fmtM(loom.meters_on_beam ?? 0), fmtM(loom.expected_fabric_length_m))}</div>
+          <div className="space-y-2 rounded-lg bg-sunken p-3 text-sm" data-testid="takeoff-beam">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted">{P.beamDetails}</div>
+            <div className="font-semibold">
+              {L.takeoff.beamOnLoom(loom.beam_no ?? '', [loom.fabric_quality_name ?? L.beam.noQuality, loom.spec_code ?? L.beam.noSpec].join(' · '))}
+            </div>
+            {(loom.spec_code || loom.reed !== null || loom.warp_yarn_quality_name || loom.weft_yarn_quality_name) && (
+              <SpecDetails spec={{ spec_code: loom.spec_code ?? '', reed: loom.reed, ends_per_inch: loom.ends_per_inch, warp_yarn_quality_name: loom.warp_yarn_quality_name, weft_yarn_quality_name: loom.weft_yarn_quality_name }} />
+            )}
+            <div className="tnum text-muted">{loom.expected_fabric_length_m !== null ? L.takeoff.soFar(fmtM(loom.meters_on_beam ?? 0), fmtM(loom.expected_fabric_length_m)) : L.takeoff.soFarOnly(fmtM(loom.meters_on_beam ?? 0))}</div>
           </div>
         )}
-        {mismatch && <Notice tone="bad">{L.spec.mismatch(loom.beam_no ?? '', `${loom.fabric_quality_name} · ${loom.spec_code}`)}</Notice>}
       </Step>
 
-      <Step n={2} title={P.step2}>
-        {numberInput('meters', P.meters, { big: true })}
+      <Step n={2} title={P.when}>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Field label={L.takeoff.date} htmlFor="entry_date" error={err.entry_date}>
+            <input key={state.values?.entry_date ?? shiftNow.date} id="entry_date" name="entry_date" type="date" max={today}
+              defaultValue={state.values?.entry_date ?? shiftNow.date} className={inputClass} />
+          </Field>
+          <Field label={P.time} htmlFor="production_time" error={err.production_time} optional>
+            <div className="flex gap-2">
+              <input id="production_time" name="production_time" type="time" value={time} onChange={(e) => pickTime(e.target.value)}
+                className={cx(inputClass, 'tnum min-w-0')} />
+              <button type="button" onClick={() => pickTime(nowTimeIST())} className="min-h-12 shrink-0 rounded-lg border border-line px-3 text-sm font-semibold">
+                {P.timeNow}
+              </button>
+            </div>
+          </Field>
+        </div>
+        <p className="-mt-1 text-xs text-muted">{P.timeHint}</p>
+        <Field label={L.takeoff.shift} htmlFor="shift" optional>
+          <select id="shift" name="shift" value={shift} onChange={(e) => setShift(e.target.value)} className={inputClass}>
+            <option value="">{L.app.none}</option>
+            {SHIFTS.map((x) => <option key={x} value={x}>{L.takeoff.shifts[x]}</option>)}
+          </select>
+        </Field>
       </Step>
 
-      <Step n={3} title={P.step3}>
-        {numberInput('roll_length_m', P.rollLength, { hint: P.rollLengthHint })}
-      </Step>
-
-      <Step n={4} title={P.step4}>
-        {numberInput('wasted_meters', P.wastedQuestion, {
-          big: true,
-          hint: P.wastedHint,
-          error: wastedTooMuch ? P.wastedTooMuch : undefined,
+      <Step n={3} title={P.step2}>
+        {numberInput('counter_reading', P.counter, {
+          big: true, optional: true,
+          hint: previous !== null
+            ? P.previous(fmtM(previous), [fmtDate(loom?.last_reading_date), fmtTime(loom?.last_reading_time)].filter((x) => x !== '—').join(' '))
+            : loom ? P.noPrevious : P.counterHint,
+          error: counterLower && typed === null && !reset ? P.counterLower : undefined,
         })}
+        {(counterLower || reset) && (
+          <label className="flex min-h-10 items-start gap-2 text-sm font-semibold">
+            <input type="checkbox" name="counter_reset" checked={reset} onChange={(e) => setReset(e.target.checked)} className="mt-0.5 size-5 accent-brand" />
+            <span>{P.counterReset}</span>
+          </label>
+        )}
+        {diff !== null && diff >= 0 && (
+          <p className="tnum rounded-lg bg-ok-soft px-3 py-2 text-sm font-semibold text-ok" data-testid="counter-meters">
+            {P.fromCounter(fmtM(diff))}{typed !== null && typed !== diff ? ` · ${P.typedWins}` : ''}
+          </p>
+        )}
+        {numberInput('meters', P.metersOptional, { big: true, optional: true, hint: counter !== null ? P.metersHint : undefined })}
       </Step>
 
-      {/* Step 5: automatic */}
+      <Step n={4} title={`${P.step3} · ${P.step4}`}>
+        <div className="grid grid-cols-2 gap-3">
+          {numberInput('roll_length_m', P.rollLength, { optional: true })}
+          {numberInput('wasted_meters', P.wastedInput, { optional: true, error: wastedTooMuch ? P.wastedTooMuch : undefined })}
+        </div>
+        <p className="-mt-1 text-xs text-muted">{P.rollLengthHint} {P.wastedHint}</p>
+      </Step>
+
+      {/* automatic */}
       <div className="rounded-xl bg-sunken p-3" aria-live="polite" data-testid="production-figures">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Figure testId="fig-total" label={P.total} value={num(v.meters) !== null ? `${fmtM(num(v.meters))} m` : L.app.none} />
+          <Figure testId="fig-total" label={P.total} value={effectiveMeters !== null ? `${fmtM(effectiveMeters)} m` : L.app.none} />
           <Figure testId="fig-wasted" label={P.wasted} value={num(v.wasted_meters) !== null ? `${fmtM(num(v.wasted_meters))} m` : L.app.none} tone={wastedTooMuch ? 'bad' : undefined} />
           <Figure testId="fig-net" label={P.net} value={fig.netMeters !== null ? `${fmtM(fig.netMeters)} m` : L.app.none} tone="ok" />
           <Figure testId="fig-pct" label={P.wastagePct} value={fig.wastagePct !== null ? fmtPct(fig.wastagePct).replace('+', '') : L.app.none} />
@@ -214,7 +266,7 @@ export function ProductionForm({
       <details open={showWeight || undefined} className="group rounded-xl border border-line p-3">
         <summary className="flex min-h-10 cursor-pointer list-none items-center justify-between font-semibold">
           <span className="flex items-center gap-2">
-            <span className="flex size-6 items-center justify-center rounded-full bg-sunken text-xs">6</span>
+            <span className="flex size-6 items-center justify-center rounded-full bg-sunken text-xs">5</span>
             {P.step6}
           </span>
           <span aria-hidden className="text-muted group-open:rotate-180">▾</span>
@@ -251,25 +303,13 @@ export function ProductionForm({
         </div>
       </details>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Field label={L.takeoff.date} htmlFor="entry_date" error={err.entry_date}>
-          <input key={state.values?.entry_date ?? shiftNow.date} id="entry_date" name="entry_date" type="date" max={today}
-            defaultValue={state.values?.entry_date ?? shiftNow.date} className={inputClass} />
-        </Field>
-        <Field label={L.takeoff.shift} htmlFor="shift" optional>
-          <select key={state.values?.shift ?? shiftNow.shift} id="shift" name="shift" defaultValue={state.values?.shift ?? shiftNow.shift} className={inputClass}>
-            <option value="">{L.app.none}</option>
-            {SHIFTS.map((s) => <option key={s} value={s}>{L.takeoff.shifts[s]}</option>)}
-          </select>
-        </Field>
-      </div>
-
       <label className={cx('flex min-h-12 items-start gap-3 rounded-lg border p-3 font-semibold', finish ? 'border-warn bg-warn-soft' : 'border-line')}>
         <input type="checkbox" name="finish_beam" checked={finish} onChange={(e) => setFinish(e.target.checked)} className="mt-0.5 size-5 accent-brand" />
         <span>{L.takeoff.finishBeam}</span>
       </label>
 
-      <SubmitButton className="w-full" disabled={!loom || !specId || wastedTooMuch || Boolean(mismatch)}>{P.save}</SubmitButton>
+      {nothing && <p className="text-sm text-muted">{P.metersOrCounter}</p>}
+      <SubmitButton className="w-full" disabled={!loom || nothing || wastedTooMuch || (counterLower && typed === null && !reset)}>{P.save}</SubmitButton>
     </form>
   );
 }

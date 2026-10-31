@@ -93,10 +93,10 @@ describe('one parent, many specifications', () => {
 });
 
 describe('beams, production, rolls and stock per specification', () => {
-  it('a beam must name its specification when the parent has several; it must belong to that parent', async () => {
-    const e = await pgError(() => db.sql.query(
-      `insert into beams (beam_no, fabric_quality_id, factory_id, warp_length_m) values ('X-1', $1, $2, 100)`, [id['Quality 101'], id['L-76']]));
-    expect(e.message).toBe('Choose the specification of Quality 101 for this beam');
+  it('a beam may leave the specification blank when the parent has several; a chosen one must belong to that parent', async () => {
+    const blank = (await db.sql.query(
+      `insert into beams (beam_no, fabric_quality_id, factory_id, warp_length_m) values ('X-1', $1, $2, 100) returning fabric_specification_id`, [id['Quality 101'], id['L-76']])).rows[0];
+    expect(blank.fabric_specification_id).toBeNull();
     const other = (await one(`select id from fabric_specifications where spec_code = 'MONOWHITE-S1'`)).id;
     const fk = await pgError(() => db.sql.query(
       `insert into beams (beam_no, fabric_quality_id, fabric_specification_id, factory_id, warp_length_m) values ('X-2', $1, $2, $3, 100)`,
