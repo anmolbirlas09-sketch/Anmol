@@ -28,12 +28,12 @@ export async function saveFactory(db: Db, v: { code: string; name: string; activ
 }
 
 export async function listLooms(db: Db): Promise<LoomRow[]> {
-  return unwrap(await db.from('looms').select('id, factory_id, machine_no, status, active, sort_order, notes, fabric_specification_id').order('sort_order').order('machine_no'));
+  return unwrap(await db.from('looms').select('id, factory_id, machine_no, loom_no, status, active, sort_order, notes, fabric_specification_id').order('loom_no', { nullsFirst: false }).order('machine_no'));
 }
 
 export async function saveLoom(
   db: Db,
-  v: { machine_no: string; factory_id: string; sort_order?: number; status?: string; active: boolean; notes?: string; fabric_specification_id?: string },
+  v: { machine_no: string; factory_id: string; loom_no?: number; sort_order?: number; status?: string; active: boolean; notes?: string; fabric_specification_id?: string },
   id?: string,
 ): Promise<void> {
   const row: Record<string, unknown> = {
@@ -41,6 +41,8 @@ export async function saveLoom(
     fabric_specification_id: v.fabric_specification_id ?? null,
   };
   if (v.sort_order !== undefined) row.sort_order = v.sort_order;
+  // blank keeps the current number (a new loom gets the next one)
+  if (v.loom_no !== undefined) row.loom_no = v.loom_no;
   // 'running' is set by loading a beam, never by hand; idle <-> maintenance only.
   if (v.status === 'idle' || v.status === 'maintenance') row.status = v.status;
   if (id) {

@@ -223,7 +223,7 @@ describe('migration 0010 on an existing database', () => {
     const later = all.filter(isLater);
     expect(later.map((f) => f.split('/').pop())).toEqual([
       '20261031000010_metre_first_production.sql', '20261101000011_day_night_shifts.sql', '20261101000012_fabric_specifications.sql',
-      '20261102000013_beam_cards_timed_production.sql',
+      '20261102000013_beam_cards_timed_production.sql', '20261103000014_loom_numbers.sql',
     ]);
     await admin((c) => c.query(`drop database if exists ${name} with (force)`));
     await admin((c) => c.query(`create database ${name}`));

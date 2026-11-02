@@ -54,15 +54,19 @@ test('an empty beam card can be saved, then completed later', async ({ page }) =
 test('load a new beam from the loom; record readings with the actual time; metres from the counter', async ({ page }) => {
   await signIn(page, 'entry76@test.local');
   // tap the idle loom on the dashboard grid → "Load new beam"
-  await page.getByRole('button', { name: /^L76-27\b/ }).click();
+  const tile = page.getByRole('button', { name: /^L76-27\b/ });
+  await expect(tile).toContainText('Loom 59'); // loom number shown with the machine name
+  await expect(tile.getByTestId('tile-machine')).toHaveText('L76-27');
+  await tile.click();
+  await expect(page.getByRole('dialog').getByRole('heading')).toHaveText('Loom 59 · L76-27');
   await page.getByRole('dialog').getByRole('link', { name: 'Load new beam' }).click();
   await page.waitForLoadState('networkidle');
   // the loom is already chosen
-  await expect(page.getByLabel('Loom number').locator('option:checked')).toContainText('L76-27');
+  await expect(page.getByLabel('Loom number').locator('option:checked')).toContainText('Loom 59 · L76-27');
   await page.getByLabel('Beam number').fill('bc-78');
   await page.getByLabel('Fabric quality number').selectOption({ label: 'Mono White' });
   await page.getByRole('button', { name: 'Save and load on loom' }).click();
-  await expect(page.getByTestId('beam-loom')).toHaveText('On loom L76-27');
+  await expect(page.getByTestId('beam-loom')).toHaveText('On Loom 59 · L76-27');
   await page.getByRole('link', { name: 'Production', exact: true }).click();
 
   // 5:10 PM: counter 1,085, 85 m typed (no earlier reading on this loom)
@@ -110,7 +114,7 @@ test('replace the running beam (finish it); history is kept on both beams and th
   await expect(page.getByLabel('Take beam BC-78 off unfinished (it can be loaded again later)')).toHaveCount(0);
   await page.getByLabel('Beam BC-78 is finished (fully woven)').check();
   await page.getByRole('button', { name: 'Save and load on loom' }).click();
-  await expect(page.getByTestId('beam-loom')).toHaveText('On loom L76-27');
+  await expect(page.getByTestId('beam-loom')).toHaveText('On Loom 59 · L76-27');
 
   await page.goto('/beams?q=bc-78');
   await page.getByRole('link', { name: /BC-78/ }).click();

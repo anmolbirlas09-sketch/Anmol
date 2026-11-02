@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { Badge, buttonClass, cx, type Tone } from '@/components/ui';
-import { fmtDateTime, fmtKg, fmtM } from '@/lib/format';
+import { fmtDateTime, fmtKg, fmtM, loomName } from '@/lib/format';
 import { L } from '@/lib/labels';
 import type { LoomStatus, LoomStatusRow } from '@/lib/types';
 import { FactoryHeading, LoomTileBody, gridClass, groupByFactory, tileBase, tileClass, tileLabel } from './looms/LoomTile';
@@ -62,7 +62,7 @@ export function LoomGridSheet({ looms, userFactoryId }: { looms: LoomStatusRow[]
           <div className="p-5 pb-[calc(1.25rem+env(safe-area-inset-bottom))]">
             <div className="mb-3 flex items-start justify-between gap-3">
               <div>
-                <h2 id="loom-sheet-title" className="text-xl font-bold">{loom.machine_no}</h2>
+                <h2 id="loom-sheet-title" className="text-xl font-bold">{loomName(loom.machine_no, loom.loom_no)}</h2>
                 <div className="mt-1 flex items-center gap-2 text-sm text-muted">
                   <Badge tone={tone[loom.status]}>{L.loom.statuses[loom.status]}</Badge> {loom.factory_code}
                 </div>

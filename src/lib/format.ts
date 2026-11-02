@@ -49,6 +49,12 @@ export function currentShift(now = new Date()): { shift: 'day' | 'night'; date: 
   return { shift: 'night', date: todayIST(new Date(now.getTime() - 24 * 3600 * 1000)) };
 }
 
+/** 'Loom 37 · L75-05' — the factory-wide loom number next to the machine name. */
+export function loomName(machineNo: string | null | undefined, loomNo?: number | null): string {
+  if (!machineNo) return '—';
+  return loomNo ? `Loom ${loomNo} · ${machineNo}` : machineNo;
+}
+
 /** '17:10:00' → '5:10 PM' */
 export function fmtTime(v: string | null | undefined): string {
   const m = v ? /^(\d{1,2}):(\d{2})/.exec(v) : null;

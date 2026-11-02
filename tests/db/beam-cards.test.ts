@@ -183,3 +183,24 @@ describe('production with the actual time and counter readings', () => {
     expect([num(ls.last_counter_reading), ls.last_reading_time]).toEqual([1400, '01:30:00']);
   });
 });
+
+describe('loom numbers 1–68 next to the machine names', () => {
+  it('L75-01…32 are Looms 1–32 and L76-01…36 are Looms 33–68; names unchanged', async () => {
+    const rows = (await db.sql.query(`select machine_no, loom_no from looms order by loom_no`)).rows;
+    expect(rows.length).toBe(68);
+    expect(rows.map((r) => r.loom_no)).toEqual(Array.from({ length: 68 }, (_, i) => i + 1));
+    expect([rows[0], rows[31], rows[32], rows[67]]).toEqual([
+      { machine_no: 'L75-01', loom_no: 1 }, { machine_no: 'L75-32', loom_no: 32 },
+      { machine_no: 'L76-01', loom_no: 33 }, { machine_no: 'L76-36', loom_no: 68 },
+    ]);
+    const v = await one(`select loom_no from v_loom_status where machine_no = 'L76-20'`);
+    expect(v.loom_no).toBe(52);
+  });
+
+  it('a new loom gets the next number; a number can only be used once', async () => {
+    const n = await one(`insert into looms (factory_id, machine_no) values ($1, 'L76-37') returning loom_no`, [id['L-76']]);
+    expect(n.loom_no).toBe(69);
+    const e = await pgError(() => db.sql.query(`update looms set loom_no = 1 where machine_no = 'L76-37'`));
+    expect(e.code).toBe('23505');
+  });
+});

@@ -8,7 +8,7 @@ import { canEdit, requireUser } from '@/lib/auth';
 import { listBeamEvents } from '@/lib/data/beams';
 import { getLoomStatus, listPreparedBeams, listTakeoffs } from '@/lib/data/looms';
 import { listFabricQualities } from '@/lib/data/masters';
-import { currentShift, fmtDate, fmtDateTime, fmtKg, fmtM, nowTimeIST, todayIST } from '@/lib/format';
+import { currentShift, fmtDate, fmtDateTime, fmtKg, fmtM, loomName, nowTimeIST, todayIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { LoomStatus } from '@/lib/types';
@@ -40,7 +40,7 @@ export default async function LoomPage({ params, searchParams }: PageProps<'/loo
   return (
     <>
       <PageHeader
-        title={loom.machine_no}
+        title={loomName(loom.machine_no, loom.loom_no)}
         back="/looms"
         subtitle={
           <span className="inline-flex items-center gap-2">

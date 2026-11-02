@@ -6,10 +6,10 @@ import { SpecDetails } from '@/components/SpecPicker';
 import { Card, LinkButton, Notice, PageHeader, SectionTitle, Stat, buttonClass, cx } from '@/components/ui';
 import { canEdit, requireUser } from '@/lib/auth';
 import { getBeamSummary, getConsumptionLines, listBeamEvents } from '@/lib/data/beams';
-import { listLoomStatus, listTakeoffs } from '@/lib/data/looms';
+import { listLoomStatus, listTakeoffs, loomNumbers } from '@/lib/data/looms';
 import { getFabricQuality } from '@/lib/data/masters';
 import { listOpenLots } from '@/lib/data/yarn';
-import { fmtDate, fmtDateTime, fmtKg, fmtM, fmtPct, todayIST } from '@/lib/format';
+import { fmtDate, fmtDateTime, fmtKg, fmtM, fmtPct, todayIST, loomName } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { BeamSummary, ConsumptionLineView, UsageType } from '@/lib/types';
@@ -30,17 +30,19 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
   const beam = await getBeamSummary(db, id).catch(() => null);
   if (!beam) notFound();
   const mayWork = !user.factory_id || !beam.factory_id || user.factory_id === beam.factory_id;
-  const [lines, lots, fq, takeoffs, looms, events] = await Promise.all([
+  const [lines, lots, fq, takeoffs, looms, events, nos] = await Promise.all([
     getConsumptionLines(db, id),
     listOpenLots(db),
     beam.fabric_quality_id ? getFabricQuality(db, beam.fabric_quality_id) : Promise.resolve(null),
     listTakeoffs(db, { beamId: id, limit: 500 }),
     beam.status === 'prepared' && mayWork ? listLoomStatus(db, { factoryId: user.factory_id ?? undefined }) : Promise.resolve([]),
     listBeamEvents(db, { beamId: id }),
+    loomNumbers(db),
   ]);
+  const loomLabel = loomName(beam.machine_no, beam.machine_no ? nos.get(beam.machine_no) : null);
   const editable = canEdit(user);
   const here = `/beams/${beam.beam_id}`;
-  const card = cardFields(beam);
+  const card = cardFields(beam, loomLabel);
   const missing = card.flatMap((g) => g.fields).filter((f) => f.value === null).length;
 
   return (
@@ -54,7 +56,7 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
             <BeamStatusBadge status={beam.status} unloaded={beam.status === 'prepared' && beam.takeoff_count > 0} />
             {beam.fabric_quality_name ?? L.beam.noQuality} · <span data-testid="beam-spec">{beam.spec_code ?? L.beam.noSpec}</span>
             {beam.factory_code && ` · ${beam.factory_code}`}
-            {beam.machine_no && beam.status === 'on_loom' && ` · ${L.beam.loom} ${beam.machine_no}`}
+            {beam.machine_no && beam.status === 'on_loom' && ` · ${loomLabel}`}
             <span className="text-xs">· {L.card.cardNo(beam.card_no)}</span>
           </span>
         }
@@ -77,7 +79,7 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
         <Card className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <Link href={`/looms/${beam.loom_id}`} className="text-lg font-bold text-brand" data-testid="beam-loom">
-              {L.beam.onLoom(beam.machine_no ?? '')}
+              {L.beam.onLoom(loomLabel)}
             </Link>
             <div className="text-xs text-muted">{L.loom.loadedAt} {fmtDateTime(beam.loaded_at)}</div>
           </div>
@@ -105,7 +107,7 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
       {beam.status === 'finished' && (
         <p className="text-sm text-muted">
           {L.beam.statuses.finished} {fmtDateTime(beam.finished_at)}
-          {beam.machine_no ? ` · ${beam.machine_no}` : ''}
+          {beam.machine_no ? ` · ${loomLabel}` : ''}
         </p>
       )}
 
@@ -175,7 +177,7 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
               <li key={e.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm" data-event={e.event}>
                 <span>
                   <b>{L.card.events[e.event]}</b>{' '}
-                  <Link href={`/looms/${e.loom_id}`} className="font-semibold text-brand">{e.machine_no}</Link>
+                  <Link href={`/looms/${e.loom_id}`} className="font-semibold text-brand">{loomName(e.machine_no, e.loom_no)}</Link>
                   {e.meters_so_far !== null && e.event !== 'loaded' && <span className="text-muted"> · {L.card.soFar(fmtM(e.meters_so_far))}</span>}
                 </span>
                 <span className="tnum shrink-0 text-xs text-muted">{fmtDateTime(e.at)}</span>
@@ -217,7 +219,7 @@ export default async function BeamPage({ params, searchParams }: PageProps<'/bea
 }
 
 /** The 20 beam card fields in the factory card's groups (null = not filled in). */
-function cardFields(b: BeamSummary): { title: string; fields: { label: string; value: string | null }[] }[] {
+function cardFields(b: BeamSummary, loomLabel: string): { title: string; fields: { label: string; value: string | null }[] }[] {
   const C = L.card;
   const n = (v: number | null, f: (x: number) => string = String) => (v === null ? null : f(v));
   return [
@@ -248,7 +250,7 @@ function cardFields(b: BeamSummary): { title: string; fields: { label: string; v
       { label: C.finishExpected, value: b.expected_finish_date ? fmtDate(b.expected_finish_date) : null },
       { label: C.finishActual, value: b.actual_finish_date ? fmtDate(b.actual_finish_date) : null },
     ] },
-    { title: C.sLoom, fields: [{ label: C.loom, value: b.machine_no }] },
+    { title: C.sLoom, fields: [{ label: C.loom, value: b.machine_no ? loomLabel : null }] },
   ];
 }
 

@@ -108,7 +108,7 @@ test('6–7. take-offs build grey stock; wastage shows on the beam', async ({ pa
   await signIn(owner, 'owner@test.local');
   await owner.goto('/looms?factory=all');
   await owner.getByRole('link', { name: /^L75-12,/ }).click();
-  await expect(owner.getByRole('heading', { level: 1 })).toHaveText('L75-12');
+  await expect(owner.getByRole('heading', { level: 1 })).toHaveText('Loom 12 · L75-12');
   await fillProduction(owner, { meters: '800', wasted: '0', roll: '100', weighed: '420' });
   await owner.getByRole('button', { name: 'Save production' }).click();
   await expect(owner.getByText('Saved: 800.00 m usable in 8 rolls from L75-12')).toBeVisible();

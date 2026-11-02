@@ -7,7 +7,7 @@ import { listBeams } from '@/lib/data/beams';
 import { listLoomStatus } from '@/lib/data/looms';
 import { listFabricQualities } from '@/lib/data/masters';
 import { uuidParam } from '@/lib/params';
-import { fmtDate, fmtKg } from '@/lib/format';
+import { fmtDate, fmtKg, loomName } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { createClient } from '@/lib/supabase/server';
 import type { BeamStatus } from '@/lib/types';
@@ -60,7 +60,7 @@ export default async function BeamsPage({ searchParams }: PageProps<'/beams'>) {
           </select>
           <select name="loom" defaultValue={loomId ?? ''} aria-label={L.card.filterLoom} className={inputClass}>
             <option value="">{L.card.filterLoom}: {L.card.any}</option>
-            {looms.map((l) => <option key={l.loom_id} value={l.loom_id}>{l.machine_no}</option>)}
+            {looms.map((l) => <option key={l.loom_id} value={l.loom_id}>{loomName(l.machine_no, l.loom_no)}</option>)}
           </select>
           <button className="col-span-2 min-h-12 rounded-lg border border-line bg-surface px-4 font-semibold sm:col-span-4">{L.app.search}</button>
         </form>
@@ -81,7 +81,7 @@ export default async function BeamsPage({ searchParams }: PageProps<'/beams'>) {
                     </div>
                     <div className="truncate text-sm">{b.fabric_quality_name ?? L.beam.noQuality}{b.spec_code ? ` · ${b.spec_code}` : ''}</div>
                     <div className="mt-0.5 text-xs text-muted">
-                      {[fmtDate(b.register_date), b.factory_code, b.status === 'on_loom' ? b.machine_no : null].filter(Boolean).join(' · ')}
+                      {[fmtDate(b.register_date), b.factory_code, b.status === 'on_loom' ? loomName(b.machine_no, looms.find((l) => l.loom_id === b.loom_id)?.loom_no) : null].filter(Boolean).join(' · ')}
                     </div>
                   </div>
                   <div className="tnum shrink-0 text-right text-sm">

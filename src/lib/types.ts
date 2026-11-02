@@ -184,6 +184,7 @@ export interface BeamLoomEvent {
   at: string;
   meters_so_far: number | null;
   created_by_name: string | null;
+  loom_no: number | null;
 }
 
 
@@ -256,6 +257,8 @@ export interface LoomStatusRow {
   last_reading_at: string | null;
   last_reading_date: string | null;
   last_reading_time: string | null;
+  /** Loom number across the factory (1–68) */
+  loom_no: number | null;
   expected_finish_date: string | null;
   total_ends: number | null;
   picks_on_loom: number | null;
@@ -308,6 +311,7 @@ export interface Takeoff extends SpecFields {
   counter_reset: boolean;
   /** Date + time of the reading (IST wall clock) */
   reading_at: string;
+  loom_no: number | null;
 }
 
 export interface FabricRoll extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code' | 'reed' | 'ends_per_inch'> {
@@ -399,6 +403,7 @@ export interface LoomRow {
   id: string;
   factory_id: string;
   machine_no: string;
+  loom_no: number | null;
   fabric_specification_id: string | null;
   status: LoomStatus;
   active: boolean;

@@ -42,6 +42,7 @@ const DUPLICATE_WHAT: Record<string, string> = {
   fabric_qualities_name_key: 'fabric quality',
   suppliers_name_key: 'supplier',
   factories_code_key: 'factory code',
+  looms_loom_no_key: 'loom number',
   fabric_specifications_combo_key: 'specification (same reed, ends per inch and yarns)',
 };
 
