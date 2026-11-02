@@ -78,7 +78,7 @@ export function ImportForm({ kind }: { kind: ImportKind }) {
                       </>
                     ) : (
                       <>
-                        <td className="px-3 py-1.5 font-semibold">{(r as GreyImportRow).fabric_quality_name}</td>
+                        <td className="px-3 py-1.5 font-semibold">{(r as GreyImportRow).fabric_quality_name} · {(r as GreyImportRow).spec_code}</td>
                         <td className="px-3 py-1.5">{r.factory_code}</td>
                         <td className="px-3 py-1.5 text-right">{fmtM((r as GreyImportRow).meters)} m</td>
                         <td className="px-3 py-1.5 text-right">{fmtKg((r as GreyImportRow).kgs)} kg</td>

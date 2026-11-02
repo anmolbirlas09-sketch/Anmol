@@ -57,7 +57,7 @@ test('8. dispatch reduces grey stock; over-dispatch is stopped', async ({ page }
   await page.getByRole('link', { name: 'Dispatch', exact: true }).click();
   await expect(page.getByRole('heading', { level: 1 })).toHaveText('Grey dispatch');
   await page.getByLabel('From factory').selectOption({ label: 'L-75' });
-  await pick(page, 'Fabric quality', 'Green', /Green Shade Net/);
+  await pick(page, 'Fabric quality · Specification', 'Green', /Green Shade Net · GREENSHADENET-S1/);
   await expect(page.getByText('2,000.00 m · 1,070.000 kg in stock')).toBeVisible();
 
   await page.getByLabel('Meters').fill('2000.01');
@@ -71,7 +71,7 @@ test('8. dispatch reduces grey stock; over-dispatch is stopped', async ({ page }
   await page.getByLabel('Challan no').fill('DC-501');
   await shot(page, '20-dispatch-form');
   await page.getByRole('button', { name: 'Save dispatch' }).click();
-  await expect(page.getByText('Dispatched 500.00 m / 270.000 kg of Green Shade Net')).toBeVisible();
+  await expect(page.getByText('Dispatched 500.00 m / 270.000 kg of Green Shade Net · GREENSHADENET-S1')).toBeVisible();
   await expect(page.getByRole('listitem').filter({ hasText: 'Shah Processors' })).toContainText('500.00 m');
 
   await page.goto('/grey?factory=all');
@@ -98,7 +98,7 @@ test('reports: on screen, Excel and PDF', async ({ page }) => {
   const ws = wb.worksheets[0];
   expect(ws.getCell('A1').value).toBe('Grey stock summary');
   const green = ws.getRows(5, ws.rowCount)!.find((r) => r.getCell(1).value === 'Green Shade Net')!;
-  expect([green.getCell(11).value, green.getCell(12).value]).toEqual([1500, 800]); // Closing m, kg
+  expect([green.getCell(2).value, green.getCell(12).value, green.getCell(13).value]).toEqual(['GREENSHADENET-S1', 1500, 800]); // Specification, closing m, kg
 
   const [pdf] = await Promise.all([page.waitForEvent('download'), page.getByRole('link', { name: /^PDF/ }).click()]);
   expect(pdf.suggestedFilename()).toMatch(/\.pdf$/);

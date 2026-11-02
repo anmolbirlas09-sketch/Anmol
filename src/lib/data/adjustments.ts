@@ -1,6 +1,6 @@
 import { unwrap } from '../errors';
 import type { GreyAdjustmentInput, YarnAdjustmentInput } from '../validation';
-import type { Db } from './client';
+import type { Db, SpecOptional } from './client';
 
 export async function createYarnAdjustment(db: Db, a: YarnAdjustmentInput): Promise<{ id: string }> {
   // factory_id is overwritten from the lot by a trigger; it only needs a value.
@@ -14,12 +14,12 @@ export async function createYarnAdjustment(db: Db, a: YarnAdjustmentInput): Prom
   );
 }
 
-export async function createGreyAdjustment(db: Db, a: GreyAdjustmentInput & { is_opening?: boolean }): Promise<{ id: string }> {
+export async function createGreyAdjustment(db: Db, a: SpecOptional<GreyAdjustmentInput> & { is_opening?: boolean }): Promise<{ id: string }> {
   return unwrap(
     await db
       .from('stock_adjustments')
       .insert({
-        item_type: 'grey_fabric', fabric_quality_id: a.fabric_quality_id, factory_id: a.factory_id,
+        item_type: 'grey_fabric', fabric_quality_id: a.fabric_quality_id, fabric_specification_id: a.fabric_specification_id ?? null, factory_id: a.factory_id,
         meters: a.meters, kgs: a.kgs, reason: a.reason, entry_date: a.entry_date, is_opening: a.is_opening ?? false,
       })
       .select('id')

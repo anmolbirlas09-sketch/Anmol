@@ -80,6 +80,10 @@ export function LoomGridSheet({ looms, userFactoryId }: { looms: LoomStatusRow[]
                     <Link href={`/beams/${loom.beam_id}`} className="text-brand">{loom.beam_no}</Link>
                     <span className="font-normal"> · {loom.fabric_quality_name}</span>
                   </dd>
+                  <dd className="text-sm" data-testid="sheet-spec">
+                    <b>{loom.spec_code}</b> · {L.spec.summary(loom.reed === null ? L.spec.notSet : String(loom.reed), loom.ends_per_inch === null ? L.spec.notSet : String(loom.ends_per_inch))}
+                    <span className="block text-xs text-muted">{L.spec.yarns(loom.warp_yarn_quality_name ?? L.spec.notSet, loom.weft_yarn_quality_name ?? L.spec.notSet)}</span>
+                  </dd>
                 </div>
                 <div>
                   <dt className="text-muted">{L.loom.producedSoFar}</dt>
@@ -105,7 +109,7 @@ export function LoomGridSheet({ looms, userFactoryId }: { looms: LoomStatusRow[]
 
             <div className="mt-5 grid grid-cols-2 gap-2">
               {mayWork && loom.status === 'running' && <Link href={`/takeoff?loom=${loom.loom_id}`} className={buttonClass.primary}>{L.takeoff.short}</Link>}
-              {mayWork && loom.status === 'idle' && <Link href={`/looms/load?loom=${loom.loom_id}`} className={buttonClass.primary}>{L.loom.loadShort}</Link>}
+              {mayWork && loom.status === 'idle' && <Link href={`/beams/new?loom=${loom.loom_id}`} className={buttonClass.primary}>{L.card.newTitle}</Link>}
               <Link href={`/looms/${loom.loom_id}`} className={cx(buttonClass.secondary, (!mayWork || loom.status === 'maintenance') && 'col-span-2')}>
                 {L.dashboard.openLoom}
               </Link>

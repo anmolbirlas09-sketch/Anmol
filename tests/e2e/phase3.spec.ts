@@ -54,14 +54,14 @@ test('5. load beams; a stale form cannot double-load a loom', async ({ page, bro
   await signIn(owner, 'owner@test.local');
   await owner.goto('/looms/load');
   await pick(owner, 'Beam', 'P-002', /P-002/);
-  await pick(owner, 'Free loom', 'L76-05', 'L76-05');
+  await pick(owner, 'Loom', 'L76-05', 'L76-05');
 
   // …meanwhile data entry at L-76 loads P-001 on L76-05.
   await signIn(page, 'entry76@test.local');
   await page.goto('/looms/load');
   await pick(page, 'Beam', 'P-001', /P-001/);
   await expect(page.getByText('Warp 400.000 kg · Weft 300.000 kg')).toBeVisible();
-  await pick(page, 'Free loom', 'L76-05', 'L76-05');
+  await pick(page, 'Loom', 'L76-05', 'L76-05');
   await shot(page, '10-load-form');
   await page.getByRole('button', { name: 'Load on loom' }).click();
   await expect(page).toHaveURL(/\/looms\/[0-9a-f-]+\?loaded=1/);
@@ -73,7 +73,7 @@ test('5. load beams; a stale form cannot double-load a loom', async ({ page, bro
   await shot(owner, '11-double-load-blocked');
 
   // P-002 goes on L75-12 instead — L-76 looms are listed first for an L-76 beam, so search.
-  await pick(owner, 'Free loom', 'L75-12', 'L75-12');
+  await pick(owner, 'Loom', 'L75-12', 'L75-12');
   await owner.getByRole('button', { name: 'Load on loom' }).click();
   await expect(owner.getByText('Beam P-002 loaded on L75-12')).toBeVisible();
 
@@ -93,13 +93,13 @@ test('6–7. take-offs build grey stock; wastage shows on the beam', async ({ pa
   await pick(page, 'Loom', 'L76-05', 'L76-05');
   await expect(page.getByTestId('takeoff-beam')).toContainText('Beam P-001 · Mono White');
   await expect(page.getByTestId('takeoff-beam')).toContainText('0.00 m so far of ~2,912.62 m expected');
-  await expect(page.getByLabel('Fabric quality', { exact: true })).toHaveValue(/.+/); // filled from the beam
+  await expect(page.getByTestId('takeoff-beam')).toContainText('MONOWHITE-S1'); // filled from the beam
   await fillProduction(page, { meters: '1200', wasted: '0', roll: '100', weighed: '650' });
   await page.getByLabel('Shift').selectOption('day');
   await shot(page, '13-takeoff-form');
   await page.getByRole('button', { name: 'Save production' }).click();
   await expect(page.getByText('Saved: 1,200.00 m usable in 12 rolls from L76-05')).toBeVisible();
-  await expect(page.getByLabel('Total production (m)')).toHaveValue('');
+  await expect(page.getByLabel('Production metres')).toHaveValue('');
   await expect(page.getByTestId('takeoff-beam')).toContainText('1,200.00 m so far'); // refreshed
   await expect(page.getByRole('listitem').filter({ hasText: 'P-001' }).first()).toContainText('1,200.00 m');
 
@@ -175,7 +175,7 @@ test('finishing via take-off on a loom page confirms on that page', async ({ pag
   await signIn(page, 'entry76@test.local');
   await page.goto('/looms/load');
   await pick(page, 'Beam', 'P-003', /P-003/);
-  await pick(page, 'Free loom', 'L76-07', 'L76-07');
+  await pick(page, 'Loom', 'L76-07', 'L76-07');
   await page.getByRole('button', { name: 'Load on loom' }).click();
   await expect(page.getByText('Beam P-003 loaded on L76-07')).toBeVisible();
   await fillProduction(page, { meters: '100', wasted: '0', roll: '50', weighed: '50' });

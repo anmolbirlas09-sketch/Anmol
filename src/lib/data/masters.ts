@@ -1,5 +1,5 @@
 import { notAllowed, unwrap } from '../errors';
-import type { Factory, FabricQualityView, Supplier, YarnQuality } from '../types';
+import type { Factory, FabricQualityView, FabricSpecification, Supplier, YarnQuality } from '../types';
 import type { Db } from './client';
 
 export async function listFactories(db: Db): Promise<Factory[]> {
@@ -48,5 +48,54 @@ export async function saveMaster(db: Db, table: MasterTable, values: Record<stri
     return id;
   }
   const created = unwrap(await db.from(table as string).insert(row).select('id').single()) as { id: string };
+  return created.id;
+}
+
+// ---------------------------------------------------------------------------
+// Fabric specifications (many per parent quality)
+// ---------------------------------------------------------------------------
+
+export async function listSpecifications(
+  db: Db,
+  f: { qualityId?: string; activeOnly?: boolean; q?: string } = {},
+): Promise<FabricSpecification[]> {
+  let q = db.from('v_fabric_specifications').select('*');
+  if (f.qualityId) q = q.eq('fabric_quality_id', f.qualityId);
+  if (f.activeOnly) q = q.eq('active', true);
+  const term = f.q?.replace(/[,()*%\\]/g, ' ').trim();
+  if (term) q = q.or(`spec_code.ilike.*${term}*,fabric_quality_name.ilike.*${term}*`);
+  return unwrap(await q.order('fabric_quality_name').order('seq').limit(2000));
+}
+
+export async function getSpecification(db: Db, id: string): Promise<FabricSpecification | null> {
+  return unwrap(await db.from('v_fabric_specifications').select('*').eq('id', id).maybeSingle());
+}
+
+/** Everything but the parent is optional (blank → NULL, can be filled in later). */
+export interface SpecificationInput {
+  fabric_quality_id: string;
+  reed?: number | null;
+  ends_per_inch?: number | null;
+  warp_yarn_quality_id?: string | null;
+  weft_yarn_quality_id?: string | null;
+  active: boolean;
+  notes?: string | null;
+}
+
+/** Create (no id: the database assigns the Specification ID) or edit a specification; returns its id. */
+export async function saveSpecification(db: Db, v: SpecificationInput, id?: string): Promise<string> {
+  const row = {
+    reed: v.reed ?? null, ends_per_inch: v.ends_per_inch ?? null, warp_yarn_quality_id: v.warp_yarn_quality_id ?? null,
+    weft_yarn_quality_id: v.weft_yarn_quality_id ?? null, active: v.active, notes: v.notes ?? null,
+  };
+  if (id) {
+    const rows = unwrap(await db.from('fabric_specifications').update(row).eq('id', id).select('id'));
+    if (!rows?.length) throw notAllowed();
+    return id;
+  }
+  // seq and spec_code are filled in by the database trigger
+  const created = unwrap(
+    await db.from('fabric_specifications').insert({ ...row, fabric_quality_id: v.fabric_quality_id, seq: 0, spec_code: '' }).select('id').single(),
+  ) as { id: string };
   return created.id;
 }

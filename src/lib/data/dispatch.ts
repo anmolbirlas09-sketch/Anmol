@@ -1,9 +1,9 @@
 import { unwrap } from '../errors';
 import type { Dispatch } from '../types';
 import type { DispatchInput } from '../validation';
-import type { Db } from './client';
+import type { Db, SpecOptional } from './client';
 
-export async function createDispatch(db: Db, input: DispatchInput): Promise<{ id: string }> {
+export async function createDispatch(db: Db, input: SpecOptional<DispatchInput>): Promise<{ id: string }> {
   return unwrap(await db.from('grey_fabric_dispatch').insert(input).select('id').single());
 }
 

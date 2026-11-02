@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { SubmitButton, fieldProps, formKey } from '@/components/form';
+import { SpecPicker } from '@/components/SpecPicker';
 import { Field, Notice, inputClass } from '@/components/ui';
 import { L } from '@/lib/labels';
-import type { Factory, FabricQualityView } from '@/lib/types';
+import type { Factory, FabricQualityView, FabricSpecification } from '@/lib/types';
 import type { FormState } from '@/lib/validation';
 import { greyAdjustAction, yarnAdjustAction } from './adjust-actions';
 
@@ -32,20 +33,19 @@ export function YarnAdjustForm({ lotId, today }: { lotId: string; today: string 
   );
 }
 
-export function GreyAdjustForm({ qualities, factories, defaultFactoryId, today }: { qualities: FabricQualityView[]; factories: Factory[]; defaultFactoryId?: string; today: string }) {
+export function GreyAdjustForm({
+  qualities, specs, factories, defaultFactoryId, today,
+}: { qualities: FabricQualityView[]; specs: FabricSpecification[]; factories: Factory[]; defaultFactoryId?: string; today: string }) {
   const [state, action] = useActionState(greyAdjustAction, {} as FormState);
   const s = state.ok ? {} : state;
+  const [qualityId, setQualityId] = useState(s.values?.fabric_quality_id ?? '');
+  const [specId, setSpecId] = useState(s.values?.fabric_specification_id ?? '');
   return (
     <form action={action} className="space-y-3" noValidate key={formKey(state)}>
       {state.ok && <Notice tone="ok">{state.message}</Notice>}
       {state.error && <Notice tone="bad">{state.error}</Notice>}
+      <SpecPicker qualities={qualities} specs={specs} qualityId={qualityId} specId={specId} onQuality={setQualityId} onSpec={setSpecId} errors={s.fieldErrors} />
       <div className="grid grid-cols-2 gap-3">
-        <Field label={L.dispatch.fabricQuality} htmlFor="fabric_quality_id" error={s.fieldErrors?.fabric_quality_id}>
-          <select {...fieldProps('fabric_quality_id', s, '')} className={inputClass}>
-            <option value="">{L.app.select}</option>
-            {qualities.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
-          </select>
-        </Field>
         <Field label={L.beam.factory} htmlFor="factory_id">
           <select {...fieldProps('factory_id', s, defaultFactoryId ?? factories[0]?.id)} className={inputClass}>
             {factories.map((f) => <option key={f.id} value={f.id}>{f.code}</option>)}

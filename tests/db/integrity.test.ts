@@ -193,11 +193,16 @@ describe('beams and looms', () => {
     expect(direct.code).toBe('WV004');
   });
 
-  it('a beam with take-offs cannot be sent back to prepared', async () => {
+  it('a beam with take-offs can be unloaded (history kept) but a finished beam cannot be reopened', async () => {
     const loom = await db.id('looms', 'machine_no', 'L76-34');
     const beam = await newBeam();
     await db.sql.query('select load_beam($1, $2)', [beam, loom]);
     await db.sql.query('select record_takeoff($1, 10, 5)', [loom]);
+    await db.sql.query(`select unload_beam($1)`, [beam]);
+    const prod = (await db.sql.query(`select loom_id from grey_fabric_production where beam_id = $1`, [beam])).rows;
+    expect(prod).toEqual([{ loom_id: loom }]); // the entry still says which loom wove it
+    await db.sql.query('select load_beam($1, $2)', [beam, loom]);
+    await db.sql.query('select finish_beam($1)', [beam]);
     const err = await pgError(() => db.sql.query(`update beams set status = 'prepared' where id = $1`, [beam]));
     expect(err.code).toBe('WV004');
   });

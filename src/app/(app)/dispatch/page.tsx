@@ -38,7 +38,7 @@ export default async function DispatchPage({ searchParams }: PageProps<'/dispatc
             {recent.map((d) => (
               <li key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
                 <div className="min-w-0">
-                  <div className="font-semibold">{d.fabric_quality_name} <span className="font-normal text-muted">· {d.factory_code}</span></div>
+                  <div className="font-semibold">{d.fabric_quality_name} · {d.spec_code} <span className="font-normal text-muted">· {d.factory_code}</span></div>
                   <div className="truncate text-xs text-muted">
                     {fmtDate(d.entry_date)}{d.party ? ` · ${d.party}` : ''}{d.challan_no ? ` · ${d.challan_no}` : ''}{d.created_by_name ? ` · ${d.created_by_name}` : ''}
                   </div>

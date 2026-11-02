@@ -40,19 +40,20 @@ test('680 m produced, 33 m wasted → 647 m usable, 4.85 %, 7 rolls; no KG neede
   await page.getByLabel('Loom', { exact: true }).click();
   await page.getByRole('combobox', { name: 'Search' }).fill('L76-15');
   await page.getByRole('listbox').getByRole('option', { name: 'L76-15' }).click();
-  await expect(page.getByLabel('Fabric quality', { exact: true }).locator('option:checked')).toHaveText('Mono White');
+  // the active beam's quality and specification are filled in — nothing to choose
+  await expect(page.getByTestId('takeoff-beam')).toContainText('Mono White · MONOWHITE-S1');
 
   // Two shifts, the current one pre-selected
   await expect(page.getByLabel('Shift').locator('option')).toHaveText(['—', 'Day (8 am – 8 pm)', 'Night (8 pm – 8 am)']);
   await expect(page.getByLabel('Shift')).toHaveValue(/^(day|night)$/);
 
   // Steps 2–4
-  await page.getByLabel('Total production (m)').fill('680');
+  await page.getByLabel('Production metres').fill('680');
   await page.getByLabel('Roll length (m)').fill('100');
-  await page.getByLabel('How many metres of fabric were wasted?').fill('700');
+  await page.getByLabel('Wasted metres').fill('700');
   await expect(page.getByText('Wasted metres cannot be more than total production')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Save production' })).toBeDisabled();
-  await page.getByLabel('How many metres of fabric were wasted?').fill('33');
+  await page.getByLabel('Wasted metres').fill('33');
 
   // Step 5: automatic
   await expect(page.getByTestId('fig-total')).toContainText('680.00 m');
@@ -79,9 +80,9 @@ test('optional weights: estimated vs actual, and KG wastage asked only when KG i
   await page.getByLabel('Loom', { exact: true }).click();
   await page.getByRole('combobox', { name: 'Search' }).fill('L76-16');
   await page.getByRole('listbox').getByRole('option', { name: 'L76-16' }).click();
-  await page.getByLabel('Total production (m)').fill('250');
+  await page.getByLabel('Production metres').fill('250');
   await page.getByLabel('Roll length (m)').fill('50');
-  await page.getByLabel('How many metres of fabric were wasted?').fill('0');
+  await page.getByLabel('Wasted metres').fill('0');
 
   await page.locator('details').filter({ hasText: 'Weight (optional)' }).locator('summary').click();
   await expect(page.getByTestId('estimated-kg')).toContainText('Enter GSM and width');

@@ -10,6 +10,11 @@ const masters = {
   fabricQualities: ['Mono White', 'White/Black', 'Green Shade Net'].map((name) => ({ id: name, name })),
   factories: [{ id: 'L-76', code: 'L-76' }, { id: 'L-75', code: 'L-75' }],
   suppliers: [{ id: 's', name: 'Sample Yarn Suppliers Pvt Ltd' }],
+  specifications: [
+    { id: 'a', spec_code: 'MONOWHITE-S1', fabric_quality_id: 'Mono White' },
+    { id: 'b', spec_code: 'WHITEBLACK-S1', fabric_quality_id: 'White/Black' },
+    { id: 'c', spec_code: 'GREENSHADENET-S1', fabric_quality_id: 'Green Shade Net' },
+  ],
 };
 
 for (const kind of ['yarn', 'grey'] as const) {

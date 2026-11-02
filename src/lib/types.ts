@@ -97,21 +97,26 @@ export interface YarnLedgerRow {
   created_at: string;
 }
 
-export interface BeamSummary {
+export interface BeamSummary extends SpecFields {
+  spec_warp_yarn_quality_id: string | null;
+  spec_weft_yarn_quality_id: string | null;
   beam_id: string;
+  /** The beam number, or CARD-n when none was entered */
   beam_no: string;
   status: BeamStatus;
-  created_date: string;
+  /** Beam making date */
+  created_date: string | null;
   loaded_at: string | null;
   finished_at: string | null;
-  factory_id: string;
-  factory_code: string;
+  factory_id: string | null;
+  factory_code: string | null;
   loom_id: string | null;
   machine_no: string | null;
-  fabric_quality_id: string;
-  fabric_quality_name: string;
-  warp_length_m: number;
-  expected_fabric_length_m: number;
+  fabric_quality_id: string | null;
+  fabric_quality_name: string | null;
+  /** Counter meter (warp length) */
+  warp_length_m: number | null;
+  expected_fabric_length_m: number | null;
   warp_kg: number;
   weft_kg: number;
   total_yarn_kg: number;
@@ -143,10 +148,48 @@ export interface BeamSummary {
   waste_kg_estimated: number | null;
   weight_wastage_pct_actual: number | null;
   meters_per_kg: number | null;
+  // Beam card
+  card_no: number;
+  /** What was typed as the beam number (null = none) */
+  beam_no_entered: string | null;
+  card_reed: number | null;
+  card_warp_yarn_quality_id: string | null;
+  card_weft_yarn_quality_id: string | null;
+  total_ends: number | null;
+  reed_space_in: number | null;
+  picks_on_loom: number | null;
+  rolling_meter: number | null;
+  warp_weight_kg: number | null;
+  gross_weight_kg: number | null;
+  finished_weight_kg: number | null;
+  weft_weight_kg: number | null;
+  weave: string | null;
+  getting_date: string | null;
+  expected_finish_date: string | null;
+  actual_finish_date: string | null;
+  notes: string | null;
+  /** Beam making date, or the day the card was created */
+  register_date: string;
+  created_at: string;
+}
+
+/** A load / unload / finish of a beam on a loom. */
+export interface BeamLoomEvent {
+  id: string;
+  beam_id: string;
+  beam_no: string;
+  loom_id: string;
+  machine_no: string;
+  event: 'loaded' | 'unloaded' | 'finished';
+  at: string;
+  meters_so_far: number | null;
+  created_by_name: string | null;
 }
 
 
 export interface ConsumptionLineView extends ConsumptionLine {
+  fabric_specification_id: string;
+  spec_code: string;
   beam_no: string;
   lot_no: string;
   yarn_quality_id: string;
@@ -155,6 +198,8 @@ export interface ConsumptionLineView extends ConsumptionLine {
 }
 
 export interface FabricQualityView extends FabricQuality {
+  spec_count: number;
+  active_spec_count: number;
   warp_yarn_quality_name: string | null;
   weft_yarn_quality_name: string | null;
   warp_denier: number | null;
@@ -196,14 +241,33 @@ export interface LoomStatusRow {
   total_yarn_kg: number | null;
   wasted_on_beam: number | null;
   net_on_beam: number | null;
+  /** Specification running now (from the beam) */
+  fabric_specification_id: string | null;
+  spec_code: string | null;
+  reed: number | null;
+  ends_per_inch: number | null;
+  warp_yarn_quality_name: string | null;
+  weft_yarn_quality_name: string | null;
+  /** Specification the loom is set up for (null = any) */
+  assigned_specification_id: string | null;
+  assigned_spec_code: string | null;
+  /** The loom's last counter meter reading */
+  last_counter_reading: number | null;
+  last_reading_at: string | null;
+  last_reading_date: string | null;
+  last_reading_time: string | null;
+  expected_finish_date: string | null;
+  total_ends: number | null;
+  picks_on_loom: number | null;
+  reed_space_in: number | null;
 }
 
-export interface Takeoff {
+export interface Takeoff extends SpecFields {
   id: string;
   entry_date: string;
   shift: string | null;
-  /** Total production metres */
-  meters: number;
+  /** Total production metres (null for a counter reading with nothing to compare against) */
+  meters: number | null;
   /** ACTUAL weighed kg, null when not weighed */
   kgs: number | null;
   roll_no: string | null;
@@ -217,13 +281,13 @@ export interface Takeoff {
   machine_no: string;
   factory_id: string;
   factory_code: string;
-  fabric_quality_id: string;
-  fabric_quality_name: string;
+  fabric_quality_id: string | null;
+  fabric_quality_name: string | null;
   created_by: string | null;
   created_by_name: string | null;
   wasted_meters: number;
-  net_meters: number;
-  wastage_pct: number;
+  net_meters: number | null;
+  wastage_pct: number | null;
   roll_length_m: number | null;
   gsm: number | null;
   width_m: number | null;
@@ -236,9 +300,17 @@ export interface Takeoff {
   waste_kg_estimated: number | null;
   weight_wastage_pct: number | null;
   roll_count: number;
+  /** Actual time of the reading, 'HH:MM:SS' */
+  production_time: string | null;
+  counter_reading: number | null;
+  previous_reading: number | null;
+  meters_source: 'manual' | 'counter' | null;
+  counter_reset: boolean;
+  /** Date + time of the reading (IST wall clock) */
+  reading_at: string;
 }
 
-export interface FabricRoll {
+export interface FabricRoll extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code' | 'reed' | 'ends_per_inch'> {
   id: string;
   roll_no: string;
   seq: number;
@@ -256,9 +328,10 @@ export interface FabricRoll {
   fabric_quality_name: string;
 }
 
-export interface GreyStockRow {
-  fabric_quality_id: string;
-  fabric_quality_name: string;
+export interface GreyStockRow extends SpecFields {
+  /** null: production on beams whose quality is not filled in yet */
+  fabric_quality_id: string | null;
+  fabric_quality_name: string | null;
   factory_id: string;
   factory_code: string;
   produced_m: number;
@@ -273,7 +346,7 @@ export interface GreyStockRow {
   unweighed_count: number;
 }
 
-export interface ProductionDaily {
+export interface ProductionDaily extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code'> {
   entry_date: string;
   factory_id: string;
   factory_code: string;
@@ -305,7 +378,7 @@ export interface YarnStockByQualityFactory {
   balance_kg: number;
 }
 
-export interface Dispatch {
+export interface Dispatch extends Pick<SpecFields, 'fabric_specification_id' | 'spec_code'> {
   id: string;
   entry_date: string;
   meters: number;
@@ -326,8 +399,44 @@ export interface LoomRow {
   id: string;
   factory_id: string;
   machine_no: string;
+  fabric_specification_id: string | null;
   status: LoomStatus;
   active: boolean;
   sort_order: number;
   notes: string | null;
+}
+
+/** A specification of a parent fabric quality. Reed and ends per inch are independent. */
+export interface FabricSpecification {
+  id: string;
+  fabric_quality_id: string;
+  fabric_quality_name: string;
+  seq: number;
+  /** System-generated Specification ID, e.g. QUALITY101-S2 */
+  spec_code: string;
+  reed: number | null;
+  ends_per_inch: number | null;
+  warp_yarn_quality_id: string | null;
+  warp_yarn_quality_name: string | null;
+  warp_denier: number | null;
+  weft_yarn_quality_id: string | null;
+  weft_yarn_quality_name: string | null;
+  weft_denier: number | null;
+  active: boolean;
+  notes: string | null;
+  quality_active: boolean;
+  beam_count: number;
+  /** Has beams/production: reed, ends per inch and yarns are locked */
+  has_history: boolean;
+}
+
+/** Fields every row carrying a specification exposes. */
+export interface SpecFields {
+  /** null while the beam card's specification is not filled in */
+  fabric_specification_id: string | null;
+  spec_code: string | null;
+  reed: number | null;
+  ends_per_inch: number | null;
+  warp_yarn_quality_name: string | null;
+  weft_yarn_quality_name: string | null;
 }

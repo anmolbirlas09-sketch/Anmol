@@ -7,7 +7,7 @@ const field = `${inputClass} mt-1 font-normal`;
 
 /** Plain GET form: the filters live in the URL, so reports can be bookmarked and shared. */
 export function ReportFilters({
-  action, p, factories, lockedFactory, showPeriod, looms, qualities,
+  action, p, factories, lockedFactory, showPeriod, looms, qualities, specs, specsToggle, timed, groupBy,
 }: {
   action: string;
   p: ReportParams;
@@ -17,6 +17,13 @@ export function ReportFilters({
   /** When given, also filter by loom, fabric quality and beam number. */
   looms?: { id: string; machine_no: string }[];
   qualities?: { id: string; name: string }[];
+  specs?: { id: string; spec_code: string; fabric_quality_name: string }[];
+  /** Offer "each specification under its parent" vs "parent qualities only". */
+  specsToggle?: boolean;
+  /** Time-of-day window and shift (time-stamped production reports). */
+  timed?: boolean;
+  /** Daily report: group rows by loom / quality / specification / beam. */
+  groupBy?: boolean;
 }) {
   const detailed = Boolean(looms && qualities);
   return (
@@ -63,9 +70,55 @@ export function ReportFilters({
               {qualities!.map((q) => <option key={q.id} value={q.id}>{q.name}</option>)}
             </select>
           </label>
+          {specs && (
+            <label className="text-sm font-semibold">
+              {L.reports.spec}
+              <select name="spec" defaultValue={p.fabricSpecificationId ?? ''} className={field}>
+                <option value="">{L.reports.any}</option>
+                {specs.map((s) => <option key={s.id} value={s.id}>{s.spec_code} ({s.fabric_quality_name})</option>)}
+              </select>
+            </label>
+          )}
+          {specsToggle && (
+            <label className="text-sm font-semibold">
+              {L.spec.title}
+              <select name="specs" defaultValue={p.showSpecs === false ? '0' : '1'} className={field}>
+                <option value="1">{L.reports.showSpecs}</option>
+                <option value="0">{L.reports.parentsOnly}</option>
+              </select>
+            </label>
+          )}
           <label className="text-sm font-semibold">
             {L.reports.beamNo}
             <input name="beam" defaultValue={p.beamNo ?? ''} autoCapitalize="characters" className={field} />
+          </label>
+        </>
+      )}
+      {groupBy && (
+        <label className="text-sm font-semibold">
+          {L.reports.groupBy}
+          <select name="group" defaultValue={p.group ?? 'loom'} className={field}>
+            {Object.entries(L.reports.groups).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+        </label>
+      )}
+      {timed && (
+        <>
+          <label className="text-sm font-semibold">
+            {L.reports.timeFrom}
+            <input type="time" name="tfrom" defaultValue={p.timeFrom ?? ''} className={field} />
+          </label>
+          <label className="text-sm font-semibold">
+            {L.reports.timeTo}
+            <input type="time" name="tto" defaultValue={p.timeTo ?? ''} className={field} />
+          </label>
+          <label className="text-sm font-semibold">
+            {L.reports.shift}
+            <select name="shift" defaultValue={p.shift ?? ''} className={field}>
+              <option value="">{L.reports.any}</option>
+              <option value="day">{L.takeoff.shifts.day}</option>
+              <option value="night">{L.takeoff.shifts.night}</option>
+            </select>
           </label>
         </>
       )}
