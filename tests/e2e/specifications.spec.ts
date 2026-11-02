@@ -96,7 +96,7 @@ test('a beam of S2 is woven and recorded against S2, with its reed, ends and yar
   await loomSelect.selectOption((await loomSelect.locator('option', { hasText: 'L76-30' }).getAttribute('value'))!);
   await page.getByRole('button', { name: 'Save and load on loom' }).click();
   await expect(page.getByTestId('beam-spec')).toHaveText('QUALITY101-S2');
-  await expect(page.getByTestId('beam-loom')).toHaveText('On loom L76-30');
+  await expect(page.getByTestId('beam-loom')).toHaveText('On Loom 62 · L76-30');
   await page.getByRole('link', { name: 'Production', exact: true }).click();
 
   // Production entry on that loom: parent and specification come from the beam, details shown

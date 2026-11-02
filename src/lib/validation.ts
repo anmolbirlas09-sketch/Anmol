@@ -276,6 +276,7 @@ export const loomSchema = z.object({
   machine_no: requiredText(30).transform((s) => s.toUpperCase()),
   factory_id: uuid(),
   fabric_specification_id: optionalUuid(),
+  loom_no: optionalNumber({ int: true }).refine((n) => n === undefined || n > 0, L.errors.positive),
   sort_order: optionalNumber({ int: true }),
   status: z.enum(['idle', 'maintenance', 'running']).optional(),
   active: z.preprocess((v) => v === 'on' || v === 'true' || v === true, z.boolean()),

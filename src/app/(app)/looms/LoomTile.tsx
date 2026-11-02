@@ -14,15 +14,17 @@ const dotTone: Record<LoomStatus, string> = { running: 'bg-ok', idle: 'bg-muted/
 
 export const tileBase = 'flex min-h-16 w-full flex-col justify-between rounded-lg border p-1.5 text-left text-xs';
 
-export const tileLabel = (l: LoomStatusRow) => `${l.machine_no}, ${L.loom.statuses[l.status]}${l.beam_no ? `, ${l.beam_no}` : ''}`;
+export const tileLabel = (l: LoomStatusRow) =>
+  `${l.machine_no}${l.loom_no ? `, Loom ${l.loom_no}` : ''}, ${L.loom.statuses[l.status]}${l.beam_no ? `, ${l.beam_no}` : ''}`;
 
 export function LoomTileBody({ loom: l }: { loom: LoomStatusRow }) {
   return (
     <>
       <span className="flex items-center justify-between gap-1 font-bold">
-        {l.machine_no.replace(/^L\d+-/, '')}
-        <span aria-hidden className={cx('size-2 rounded-full', dotTone[l.status])} />
+        <span className="truncate">{l.loom_no ? `Loom ${l.loom_no}` : l.machine_no}</span>
+        <span aria-hidden className={cx('size-2 shrink-0 rounded-full', dotTone[l.status])} />
       </span>
+      {l.loom_no !== null && <span className="tnum -mt-0.5 block truncate text-[10px] text-muted" data-testid="tile-machine">{l.machine_no}</span>}
       {l.beam_no ? (
         <span className="truncate leading-tight">
           <span className="block truncate font-semibold">{l.beam_no}</span>

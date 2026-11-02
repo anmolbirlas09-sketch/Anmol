@@ -4,7 +4,7 @@ import { useActionState, useState } from 'react';
 import { Combobox, type ComboOption } from '@/components/Combobox';
 import { SubmitButton } from '@/components/form';
 import { Field, Notice } from '@/components/ui';
-import { fmtDate, fmtKg } from '@/lib/format';
+import { fmtDate, fmtKg, loomName } from '@/lib/format';
 import { L } from '@/lib/labels';
 import type { BeamSummary, LoomStatusRow } from '@/lib/types';
 import type { FormState } from '@/lib/validation';
@@ -37,7 +37,7 @@ export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId
     .sort((a, b) => Number(b.factory_code === homeFactory) - Number(a.factory_code === homeFactory))
     .map((l) => ({
       value: l.loom_id,
-      label: l.machine_no,
+      label: loomName(l.machine_no, l.loom_no),
       detail: [l.factory_code, l.assigned_spec_code, l.beam_id ? L.card.loomBusy(l.beam_no ?? '') : L.card.loomFree].filter(Boolean).join(' · '),
       group: homeFactory && l.factory_code !== homeFactory ? L.loom.otherFactory : L.loom.sameFactoryFirst(l.factory_code),
     }));
@@ -82,8 +82,8 @@ export function LoadBeamForm({ beams, looms, fixedBeam, fixedLoom, defaultBeamId
         </Field>
       )}
       {running && loom && (
-        <div role="radiogroup" aria-label={L.card.replaceQ(loom.machine_no, running)} className="space-y-2 rounded-lg border border-warn bg-warn-soft p-3 text-sm">
-          <p className="font-semibold">{L.card.replaceQ(loom.machine_no, running)}</p>
+        <div role="radiogroup" aria-label={L.card.replaceQ(loomName(loom.machine_no, loom.loom_no), running)} className="space-y-2 rounded-lg border border-warn bg-warn-soft p-3 text-sm">
+          <p className="font-semibold">{L.card.replaceQ(loomName(loom.machine_no, loom.loom_no), running)}</p>
           {(canUnload ? (['finish', 'unload'] as const) : (['finish'] as const)).map((r) => (
             <label key={r} className="flex min-h-10 items-start gap-2">
               <input type="radio" name="replace" value={r} defaultChecked={state.values?.replace === r} className="mt-1 size-4 accent-brand" />

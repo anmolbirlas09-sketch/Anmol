@@ -10,11 +10,18 @@ export async function listLoomStatus(db: Db, f: { factoryId?: string; activeOnly
   let q = db.from('v_loom_status').select('*');
   if (f.factoryId) q = q.eq('factory_id', f.factoryId);
   if (f.activeOnly ?? true) q = q.eq('active', true);
-  return unwrap(await q.order('factory_code', { ascending: false }).order('sort_order').order('machine_no'));
+  // Loom 1 → 68 (L-75 first, then L-76); looms without a number last.
+  return unwrap(await q.order('loom_no', { nullsFirst: false }).order('machine_no'));
 }
 
 export async function getLoomStatus(db: Db, loomId: string): Promise<LoomStatusRow | null> {
   return unwrap(await db.from('v_loom_status').select('*').eq('loom_id', loomId).maybeSingle());
+}
+
+/** machine_no → loom number (1–68), for showing "Loom 37 · L75-05" next to a machine name. */
+export async function loomNumbers(db: Db): Promise<Map<string, number>> {
+  const rows = unwrap(await db.from('looms').select('machine_no, loom_no')) as { machine_no: string; loom_no: number | null }[];
+  return new Map(rows.filter((r) => r.loom_no !== null).map((r) => [r.machine_no, r.loom_no!]));
 }
 
 /** Beams not on a loom (new, or unloaded unfinished) that can be loaded. */

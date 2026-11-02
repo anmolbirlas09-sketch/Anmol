@@ -81,7 +81,7 @@ describe('§8 steps 5–9 through the app’s data layer', () => {
     expect(looms.length).toBe(68);
     expect(looms.filter((l) => l.status === 'running').length).toBe(2);
     expect(looms.filter((l) => l.status === 'idle').length).toBe(66);
-    expect(looms[0].machine_no).toBe('L76-01'); // L-76 first, in machine order
+    expect([looms[0].machine_no, looms[0].loom_no, looms[67].machine_no, looms[67].loom_no]).toEqual(['L75-01', 1, 'L76-36', 68]); // Loom 1 → 68
 
     const l = (await getLoomStatus(entry76, id['L76-05']))!;
     expect([l.status, l.beam_no, l.fabric_quality_name, l.warp_kg, l.weft_kg, l.expected_fabric_length_m, l.total_yarn_kg])

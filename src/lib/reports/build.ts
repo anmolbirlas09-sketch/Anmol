@@ -1,3 +1,4 @@
+import { loomNumbers } from '../data/looms';
 import { fetchAll } from '../data/paging';
 import type { Db } from '../data/client';
 import { L } from '../labels';
@@ -13,6 +14,15 @@ async function rpcAll(db: Db, fn: string, args: Record<string, unknown>, order: 
 
 function table(kind: ReportKind, p: ReportParams, columns: Column[], rows: Row[], flagged?: boolean[]): ReportTable {
   return { kind, title: L.reports.kinds[kind].title, subtitle: subtitleFor(p), columns, rows, totals: totalsFor(columns, rows), flagged };
+}
+
+/** Add the loom number (1–68) next to every loom name column. */
+function withLoomNo(r: ReportTable, nos: Map<string, number>, key = 'machine_no'): ReportTable {
+  const i = r.columns.findIndex((c) => c.key === key);
+  if (i < 0 || !nos.size) return r;
+  for (const row of r.rows) row.loom_no = typeof row[key] === 'string' ? (nos.get(row[key] as string) ?? null) : null;
+  const columns = [...r.columns.slice(0, i), { key: 'loom_no', label: C.loomNo, kind: 'int' as const }, ...r.columns.slice(i)];
+  return { ...r, columns };
 }
 
 /** Metre-first production columns (shared by production, loom and beam reports). */
@@ -63,6 +73,21 @@ const add = (a: number | null, b: number | null) => (b === null ? a : (a ?? 0) +
 const r2 = (n: number | null) => (n === null ? null : Math.round(n * 100) / 100);
 
 export async function buildReport(db: Db, kind: ReportKind, p: ReportParams): Promise<ReportTable> {
+  const r = await buildReportTable(db, kind, p);
+  if (!['production', 'loom-production', 'daily', 'shift', 'rolls', 'beam-register'].includes(kind)) return r;
+  const nos = await loomNumbers(db);
+  if (kind === 'daily' && (p.group ?? 'loom') !== 'loom') return r;
+  const out = withLoomNo(r, nos, kind === 'daily' ? 'label' : 'machine_no');
+  // Loom rows in loom-number order (Loom 1–68), within each day / period.
+  if (kind === 'daily' || kind === 'shift' || kind === 'loom-production') {
+    const dateKey = kind === 'daily' ? 'entry_date' : kind === 'loom-production' ? 'period' : null;
+    out.rows.sort((a, b) => (dateKey ? String(a[dateKey]).localeCompare(String(b[dateKey])) : 0)
+      || (Number(a.loom_no) || 1e9) - (Number(b.loom_no) || 1e9));
+  }
+  return out;
+}
+
+async function buildReportTable(db: Db, kind: ReportKind, p: ReportParams): Promise<ReportTable> {
   const args = { p_from: p.from, p_to: p.to, p_factory_id: p.factoryId ?? null };
 
   switch (kind) {

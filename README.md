@@ -66,6 +66,7 @@ supabase/
     …0011_day_night_shifts.sql        shifts: day (8 am – 8 pm) and night (8 pm – 8 am)
     …0012_fabric_specifications.sql   parent qualities with multiple specifications; stock per specification
     …0013_beam_cards_timed_production.sql   digital beam card (all fields optional), loading history, production time + counter readings
+    …0014_loom_numbers.sql    Loom 1–68 next to the machine names (L75-01…32 = 1–32, L76-01…36 = 33–68)
   seed.sql                    sample yarn/fabric qualities + supplier (dev/test)
 tests/db/                     database tests against real Postgres (incl. §8)
 tests/unit/                   formatting, validation, planning, error messages
@@ -208,7 +209,7 @@ Database tests cover: the full §8 acceptance test (run as an authenticated owne
 
 ## Deploy
 
-1. `supabase db push` (applies all migrations, 0001–0013).
+1. `supabase db push` (applies all migrations, 0001–0014).
 2. Import the GitHub repo in Vercel, set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, deploy.
 3. Realtime: migration 0004 adds the stock tables to the `supabase_realtime` publication. Check in Supabase → Database → Publications that `supabase_realtime` lists `looms`, `beams`, `yarn_lots`, `yarn_consumption`, `grey_fabric_production`, `grey_fabric_dispatch`, `stock_adjustments`.
 4. In Supabase → Authentication → URL configuration, set the Site URL to the Vercel URL. If "Confirm email" is on, new users confirm by email before signing in.

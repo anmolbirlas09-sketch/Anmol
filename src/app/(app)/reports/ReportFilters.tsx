@@ -15,7 +15,7 @@ export function ReportFilters({
   lockedFactory: boolean;
   showPeriod?: boolean;
   /** When given, also filter by loom, fabric quality and beam number. */
-  looms?: { id: string; machine_no: string }[];
+  looms?: { id: string; machine_no: string; loom_no?: number | null }[];
   qualities?: { id: string; name: string }[];
   specs?: { id: string; spec_code: string; fabric_quality_name: string }[];
   /** Offer "each specification under its parent" vs "parent qualities only". */
@@ -60,7 +60,7 @@ export function ReportFilters({
             {L.reports.loom}
             <select name="loom" defaultValue={p.loomId ?? ''} className={field}>
               <option value="">{L.reports.any}</option>
-              {looms!.map((l) => <option key={l.id} value={l.id}>{l.machine_no}</option>)}
+              {looms!.map((l) => <option key={l.id} value={l.id}>{l.loom_no ? `Loom ${l.loom_no} · ${l.machine_no}` : l.machine_no}</option>)}
             </select>
           </label>
           <label className="text-sm font-semibold">

@@ -135,6 +135,7 @@ Choices made where the brief left room. Each one is easy to change — tell me i
 94. **An entry needs production metres or a counter reading;** wasted metres (blank = none) and roll length (blank = no rolls) are optional, as are all weights.
 95. **Production follows the active beam:** the loom's beam fills in the beam number, quality, specification, reed, ends per inch and yarns; staff do not choose them. A beam with missing card details still takes production.
 96. **Reports:** the production register shows date, actual time, counter reading, previous reading and whether metres were typed or worked out from the counter. New *Daily production* (per day by all looms — every loom listed for a single day — or by quality, specification or beam) and *Shift-wise production* (day / night / no shift per loom, with totals). Time-of-day and shift filters on the production, loom-wise, daily and shift reports.
+97. **Loom numbers 1–68** are shown next to the machine names ("Loom 37 · L76-05"): Loom 1–32 = L75-01…L75-32, Loom 33–68 = L76-01…L76-36 (migration 0014, `looms.loom_no`, unique). Machine names and all history are unchanged. New looms get the next number; the owner can change a number in Settings → Looms. Loom lists, the grid and loom-wise / daily / shift reports run in loom-number order, and reports with a loom column have a *Loom no* column next to it.
 
 ## Testing
 26. Tests run against a **real Postgres**, not mocks, with a small shim for Supabase's `auth.uid()` and roles. Each test file clones a freshly migrated template database.

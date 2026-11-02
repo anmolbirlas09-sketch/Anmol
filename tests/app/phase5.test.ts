@@ -168,7 +168,9 @@ describe('reports', () => {
 
   it('loom-wise production, daily and monthly, by factory', async () => {
     const daily = await buildReport(owner, 'loom-production', p());
-    expect(daily.rows.map((x) => [x.machine_no, x.meters, x.kgs])).toEqual([['L76-05', 1200, 650], ['L75-12', 800, 420]]);
+    // in loom-number order: L75-12 is Loom 12, L76-05 is Loom 37
+    expect(daily.rows.map((x) => [x.loom_no, x.machine_no, x.meters, x.kgs])).toEqual([[12, 'L75-12', 800, 420], [37, 'L76-05', 1200, 650]]);
+    expect(daily.columns.map((c) => c.key).slice(1, 4)).toEqual(['factory_code', 'loom_no', 'machine_no']);
     const monthly = await buildReport(owner, 'loom-production', { ...p(), period: 'month', factoryId: id['L-75'], factoryCode: 'L-75' });
     expect(monthly.rows.map((x) => [x.period, x.machine_no, x.meters])).toEqual([[today.slice(0, 8) + '01', 'L75-12', 800]]);
     expect(monthly.subtitle).toContain('L-75');

@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { ConfirmButton } from '@/components/ConfirmButton';
 import { Card } from '@/components/ui';
-import { fmtDate, fmtKg, fmtM, fmtTime } from '@/lib/format';
+import { fmtDate, fmtKg, fmtM, fmtTime, loomName } from '@/lib/format';
 import { L } from '@/lib/labels';
 import type { Takeoff } from '@/lib/types';
 import { deleteTakeoffAction } from './actions';
@@ -16,7 +16,7 @@ export function TakeoffList({ rows, canDelete, returnTo, show = 'both' }: { rows
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="font-semibold">
-                  {show !== 'beam' && <Link href={`/looms/${t.loom_id}`} className="text-brand">{t.machine_no}</Link>}
+                  {show !== 'beam' && <Link href={`/looms/${t.loom_id}`} className="text-brand">{loomName(t.machine_no, t.loom_no)}</Link>}
                   {show === 'both' && ' · '}
                   {show !== 'loom' && <Link href={`/beams/${t.beam_id}`} className="text-brand">{t.beam_no}</Link>}
                   <span className="font-normal"> · {t.fabric_quality_name ?? L.beam.noQuality}{t.spec_code ? ` · ${t.spec_code}` : ''}</span>

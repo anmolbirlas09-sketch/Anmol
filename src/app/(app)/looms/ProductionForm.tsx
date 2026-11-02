@@ -5,7 +5,7 @@ import { Combobox } from '@/components/Combobox';
 import { SpecDetails } from '@/components/SpecPicker';
 import { SubmitButton } from '@/components/form';
 import { Badge, Field, Notice, cx, inputClass } from '@/components/ui';
-import { fmtDate, fmtKg, fmtM, fmtPct, fmtTime, nowTimeIST } from '@/lib/format';
+import { fmtDate, fmtKg, fmtM, fmtPct, fmtTime, loomName, nowTimeIST } from '@/lib/format';
 import { L } from '@/lib/labels';
 import { describeRolls, productionFigures } from '@/lib/production';
 import type { FabricQualityView, LoomStatusRow } from '@/lib/types';
@@ -177,7 +177,7 @@ export function ProductionForm({
               value={loomId}
               onChange={setLoomId}
               invalid={Boolean(err.loom_id)}
-              options={looms.map((l) => ({ value: l.loom_id, label: l.machine_no, detail: [l.beam_no, l.fabric_quality_name].filter(Boolean).join(' · '), group: l.factory_code }))}
+              options={looms.map((l) => ({ value: l.loom_id, label: loomName(l.machine_no, l.loom_no), detail: [l.beam_no, l.fabric_quality_name].filter(Boolean).join(' · '), group: l.factory_code }))}
             />
           </Field>
         )}

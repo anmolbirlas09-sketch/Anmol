@@ -103,8 +103,13 @@ export function LoomForm({ loom, factories, specs = [] }: { loom: LoomRow | null
       <SubmitButton variant={loom ? 'secondary' : 'primary'} className="col-span-1 min-h-11 px-2 text-sm">
         {loom ? L.settings.save : L.app.add}
       </SubmitButton>
+      <label className="col-span-2 text-xs font-semibold">
+        {L.settings.loomNo}
+        <input name="loom_no" inputMode="numeric" defaultValue={v?.loom_no ?? loom?.loom_no ?? ''} placeholder={loom ? undefined : L.settings.loomNoNext}
+          className={cx(small, 'mt-1 font-normal')} />
+      </label>
       {loom && (
-        <label className="col-span-6 text-xs font-semibold">
+        <label className="col-span-4 text-xs font-semibold">
           {L.spec.loomAssigned}
           <select name="fabric_specification_id" defaultValue={v?.fabric_specification_id ?? loom.fabric_specification_id ?? ''} disabled={running} className={cx(small, 'mt-1 font-normal')}>
             <option value="">{L.spec.loomAny}</option>

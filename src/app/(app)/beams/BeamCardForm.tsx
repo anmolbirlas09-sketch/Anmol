@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { SpecDetails } from '@/components/SpecPicker';
 import { SubmitButton, fieldProps, formKey } from '@/components/form';
 import { Field, Notice, cx, inputClass } from '@/components/ui';
+import { loomName } from '@/lib/format';
 import { L } from '@/lib/labels';
 import type { BeamSummary, FabricQualityView, FabricSpecification, Factory, LoomStatusRow, YarnQuality } from '@/lib/types';
 import type { FormState } from '@/lib/validation';
@@ -184,7 +185,7 @@ export function BeamCardForm({ beam, locked, qualities, specs, yarns, factories,
       <Section n={7} title={C.sLoom}>
         {onLoom || finished ? (
           <p className="text-sm" data-testid="card-loom">
-            {onLoom ? L.beam.onLoom(beam?.machine_no ?? '') : `${L.beam.statuses.finished} · ${beam?.machine_no ?? ''}`}
+            {(() => { const at = loomName(beam?.machine_no, looms.find((l) => l.loom_id === beam?.loom_id)?.loom_no); return onLoom ? L.beam.onLoom(at) : `${L.beam.statuses.finished} · ${at}`; })()}
           </p>
         ) : (
           <>
@@ -195,7 +196,7 @@ export function BeamCardForm({ beam, locked, qualities, specs, yarns, factories,
                   <optgroup key={f} label={f}>
                     {ls.map((l) => (
                       <option key={l.loom_id} value={l.loom_id} disabled={l.status === 'maintenance'}>
-                        {l.machine_no} — {l.beam_id ? C.loomBusy(l.beam_no ?? '') : l.status === 'maintenance' ? L.loom.statuses.maintenance : C.loomFree}
+                        {loomName(l.machine_no, l.loom_no)} — {l.beam_id ? C.loomBusy(l.beam_no ?? '') : l.status === 'maintenance' ? L.loom.statuses.maintenance : C.loomFree}
                       </option>
                     ))}
                   </optgroup>
@@ -203,8 +204,8 @@ export function BeamCardForm({ beam, locked, qualities, specs, yarns, factories,
               </select>
             </Field>
             {busyWith && (
-              <div role="radiogroup" aria-label={C.replaceQ(loom!.machine_no, busyWith)} className="space-y-2 rounded-lg border border-warn bg-warn-soft p-3 text-sm">
-                <p className="font-semibold">{C.replaceQ(loom!.machine_no, busyWith)}</p>
+              <div role="radiogroup" aria-label={C.replaceQ(loomName(loom!.machine_no, loom!.loom_no), busyWith)} className="space-y-2 rounded-lg border border-warn bg-warn-soft p-3 text-sm">
+                <p className="font-semibold">{C.replaceQ(loomName(loom!.machine_no, loom!.loom_no), busyWith)}</p>
                 {(canUnload ? (['finish', 'unload'] as const) : (['finish'] as const)).map((r) => (
                   <label key={r} className="flex min-h-10 items-start gap-2">
                     <input type="radio" name="replace" value={r} defaultChecked={sv?.replace === r} className="mt-1 size-4 accent-brand" />
